@@ -1,0 +1,1745 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL Vizualizér — Interaktivní výukový nástroj</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0d1117; --bg2: #161b22; --bg3: #1c2128; --bg4: #21262d;
+  --border: #30363d; --border2: #484f58;
+  --text: #e6edf3; --text2: #8b949e; --text3: #6e7681;
+  --blue: #58a6ff; --green: #3fb950; --yellow: #d29922;
+  --purple: #bc8cff; --pink: #f778ba; --red: #ff7b72;
+  --cyan: #56d4dd; --orange: #f0883e;
+  --lightgreen: #7ee787; --lightred: #ffa198;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-system, sans-serif; overflow: hidden; }
+
+/* ===== LAYOUT ===== */
+.app { display: flex; flex-direction: column; height: 100vh; }
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 20px; background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.header h1 { font-size: 15px; font-weight: 700; }
+.header h1 span { color: var(--blue); }
+.main-content { display: flex; flex: 1; overflow: hidden; }
+.col-left { width: 50%; min-width: 280px; display: flex; flex-direction: column; border-right: 1px solid var(--border); }
+.col-right { flex: 1; min-width: 280px; display: flex; flex-direction: column; }
+
+/* ===== EDITOR (compact, top-left) ===== */
+.editor-section { flex: 35; min-height: 60px; display: flex; flex-direction: column; overflow: visible; position: relative; z-index: 10; }
+.editor-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 16px; background: var(--bg2); border-bottom: 1px solid var(--border);
+}
+.editor-toolbar-left { display: flex; align-items: center; gap: 8px; }
+.editor-toolbar-title { font-size: 11px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.editor-toolbar-right { display: flex; gap: 6px; }
+
+.editor-wrap {
+  position: relative; flex: 1; min-height: 40px; overflow: hidden; background: var(--bg);
+}
+.editor-line-numbers {
+  position: absolute; left: 0; top: 0; width: 36px;
+  padding: 10px 6px 10px 0; text-align: right;
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  line-height: 1.6; color: var(--text3); user-select: none;
+  pointer-events: none; z-index: 2; overflow: hidden;
+  white-space: pre;
+}
+.editor-highlight {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  padding: 10px 10px 10px 44px;
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  line-height: 1.6; white-space: pre; overflow: auto;
+  pointer-events: none; z-index: 1; color: var(--text);
+}
+.editor-textarea {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  padding: 10px 10px 10px 44px;
+  font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  line-height: 1.6; color: transparent; caret-color: var(--text);
+  background: transparent; border: none; outline: none; resize: none;
+  white-space: pre; overflow: auto;
+  z-index: 3; tab-size: 2;
+}
+.editor-textarea::selection { background: rgba(88,166,255,0.25); }
+
+/* Syntax colors */
+.syn-select { color: var(--blue); font-weight: 600; }
+.syn-from { color: var(--green); font-weight: 600; }
+.syn-where { color: var(--yellow); font-weight: 600; }
+.syn-join { color: var(--purple); font-weight: 600; }
+.syn-group { color: var(--pink); font-weight: 600; }
+.syn-having { color: var(--red); font-weight: 600; }
+.syn-order { color: var(--cyan); font-weight: 600; }
+.syn-agg { color: var(--orange); font-weight: 600; }
+.syn-string { color: var(--lightgreen); }
+.syn-number { color: var(--lightred); }
+.syn-operator { color: var(--text2); }
+.syn-paren { color: var(--text2); }
+.syn-star { color: var(--text); }
+.syn-alias { color: var(--text2); font-style: italic; }
+.syn-comma { color: var(--text3); }
+.syn-dot { color: var(--text3); }
+.syn-comment { color: var(--text3); font-style: italic; }
+
+/* ===== BUTTONS ===== */
+.btn {
+  padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg3); color: var(--text); font-size: 11px;
+  font-weight: 500; cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; gap: 4px; font-family: 'Inter', sans-serif;
+}
+.btn:hover { background: var(--bg4); border-color: var(--border2); }
+.btn-primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+.btn-primary:hover { background: #388bfd; }
+.btn kbd {
+  background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 3px;
+  font-size: 9px; font-family: 'JetBrains Mono', monospace;
+}
+
+/* ===== PIPELINE ===== */
+.pipeline-section {
+  flex: 35; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--bg); min-height: 100px; position: relative;
+  border-bottom: 1px solid var(--border);
+}
+.pipeline-header {
+  padding: 6px 16px; background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.pipeline-header-title { font-size: 11px; color: var(--text2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* ===== DATAFLOW SECTION ===== */
+.dataflow-section { flex: 65; min-height: 80px; display: flex; flex-direction: column; overflow: hidden; border-top: 1px solid var(--border); }
+.dataflow-header {
+  padding: 6px 16px; background: var(--bg2);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.timeline-top { display: flex; align-items: center; justify-content: space-between; }
+.timeline-title { font-size: 11px; color: var(--text2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.timeline-step-label { font-size: 10px; color: var(--text3); font-weight: 500; font-family: 'JetBrains Mono', monospace; }
+.timeline-controls { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+.tl-btn {
+  width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--border);
+  background: var(--bg3); color: var(--text2); font-size: 10px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  padding: 0; font-family: inherit; transition: all 0.15s;
+}
+.tl-btn:hover { background: var(--bg4); color: var(--text); border-color: var(--border2); }
+.tl-btn.playing { color: var(--blue); border-color: var(--blue); background: rgba(88,166,255,0.1); }
+.timeline-slider {
+  flex: 1;
+  -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+  background: var(--bg4); border-radius: 2px; outline: none; cursor: pointer;
+}
+.timeline-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 14px; height: 14px;
+  background: var(--blue); border-radius: 50%; cursor: pointer; border: 2px solid var(--bg);
+  box-shadow: 0 0 4px rgba(88,166,255,0.4);
+}
+.timeline-slider::-moz-range-thumb {
+  width: 14px; height: 14px; background: var(--blue); border-radius: 50%;
+  cursor: pointer; border: 2px solid var(--bg);
+}
+.dataflow-wrap { flex: 1; overflow: auto; padding: 12px 16px; }
+.pipeline-wrap {
+  flex: 1; position: relative; overflow: auto; padding: 20px 24px 10px;
+}
+.pipeline-tables {
+  display: flex; gap: 32px; justify-content: center; align-items: flex-start;
+  position: relative; min-height: 120px;
+}
+.pipeline-svg {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 1;
+}
+.pipeline-svg path {
+  fill: none; stroke-width: 2.5; stroke-linecap: round;
+}
+.join-line { stroke: var(--purple); opacity: 0.8; }
+.join-line-anim {
+  stroke-dasharray: 8 4; animation: dashFlow 1s linear infinite;
+}
+@keyframes dashFlow { to { stroke-dashoffset: -12; } }
+.join-dot {
+  fill: var(--purple); r: 4; opacity: 0.9;
+}
+
+/* Pipeline table cards */
+.p-table {
+  background: var(--bg2); border: 2px solid var(--border); border-radius: 10px;
+  min-width: 150px; max-width: 220px; flex: 1; position: relative; z-index: 2;
+  transition: all 0.3s;
+}
+.p-table.hl-from { border-color: var(--green); box-shadow: 0 0 16px rgba(63,185,80,0.15); }
+.p-table.hl-join { border-color: var(--purple); box-shadow: 0 0 16px rgba(188,140,255,0.15); }
+.p-table-name {
+  padding: 7px 12px; font-size: 13px; font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg3); border-bottom: 1px solid var(--border);
+  border-radius: 8px 8px 0 0; transition: all 0.3s; text-align: center;
+}
+.hl-from .p-table-name { background: rgba(63,185,80,0.12); color: var(--green); }
+.hl-join .p-table-name { background: rgba(188,140,255,0.12); color: var(--purple); }
+.p-table-cols { padding: 4px 0; }
+.p-col {
+  padding: 2px 12px; font-size: 11px; font-family: 'JetBrains Mono', monospace;
+  color: var(--text2); transition: all 0.2s; border-left: 2px solid transparent;
+  position: relative;
+}
+.p-col.hl-select { background: rgba(88,166,255,0.08); color: var(--blue); border-left-color: var(--blue); }
+.p-col.hl-where { background: rgba(210,153,34,0.08); color: var(--yellow); border-left-color: var(--yellow); }
+.p-col.hl-join-col { background: rgba(188,140,255,0.08); color: var(--purple); border-left-color: var(--purple); }
+.p-col.hl-group { background: rgba(247,120,186,0.08); color: var(--pink); border-left-color: var(--pink); }
+.p-col.hl-having { background: rgba(255,123,114,0.08); color: var(--red); border-left-color: var(--red); }
+.p-col.hl-order { background: rgba(86,212,221,0.08); color: var(--cyan); border-left-color: var(--cyan); }
+.p-col-pk { color: var(--orange); }
+
+/* ===== EXECUTION FLOW ===== */
+.flow-bar {
+  display: flex; gap: 4px; padding: 10px 24px; align-items: center;
+  flex-shrink: 0; flex-wrap: wrap; background: var(--bg2);
+  border-top: 1px solid var(--border);
+}
+.flow-label { font-size: 10px; color: var(--text3); margin-right: 4px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.flow-arrow { color: var(--text3); font-size: 10px; margin: 0 2px; }
+.flow-step {
+  padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
+  background: var(--bg3); color: var(--text3); border: 1px solid var(--border);
+  transition: all 0.3s; cursor: pointer; position: relative;
+}
+.flow-step.active { border-color: currentColor; }
+.flow-step.s-from.active { color: var(--green); background: rgba(63,185,80,0.1); }
+.flow-step.s-join.active { color: var(--purple); background: rgba(188,140,255,0.1); }
+.flow-step.s-where.active { color: var(--yellow); background: rgba(210,153,34,0.1); }
+.flow-step.s-group.active { color: var(--pink); background: rgba(247,120,186,0.1); }
+.flow-step.s-having.active { color: var(--red); background: rgba(255,123,114,0.1); }
+.flow-step.s-select.active { color: var(--blue); background: rgba(88,166,255,0.1); }
+.flow-step.s-order.active { color: var(--cyan); background: rgba(86,212,221,0.1); }
+
+/* Step tooltip */
+.flow-tooltip {
+  display: none; position: absolute; bottom: calc(100% + 8px); left: 50%;
+  transform: translateX(-50%); background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 12px; font-size: 11px; font-weight: 400;
+  color: var(--text); white-space: nowrap; z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4); line-height: 1.4;
+}
+.flow-tooltip::after {
+  content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+  border:5px solid transparent; border-top-color:var(--border);
+}
+.flow-step.show-tip .flow-tooltip { display: block; }
+
+/* ===== RESULTS ===== */
+.results-section {
+  flex: 65; min-height: 80px;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.results-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 16px; background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.results-header-title { font-size: 11px; color: var(--text2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.results-status { font-size: 11px; color: var(--text3); display: flex; gap: 12px; }
+.results-status span { display: flex; align-items: center; gap: 4px; }
+.results-wrap { flex: 1; overflow: auto; }
+.results-table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: 'JetBrains Mono', monospace; }
+.results-table th {
+  padding: 6px 12px; text-align: left; font-weight: 600;
+  background: var(--bg3); border-bottom: 2px solid var(--border);
+  color: var(--blue); position: sticky; top: 0; z-index: 1; white-space: nowrap;
+}
+.results-table td { padding: 5px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.results-table tbody tr:hover { background: var(--bg3); }
+.results-table .cell-null { color: var(--text3); font-style: italic; }
+.results-table .cell-number { color: var(--lightred); }
+.results-table .cell-string { color: var(--text); }
+.results-table .row-animate { animation: rowFadeIn 0.3s ease forwards; opacity: 0; }
+@keyframes rowFadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+.results-error { padding: 16px; color: var(--red); font-size: 12px; font-family: 'JetBrains Mono', monospace; line-height: 1.5; background: rgba(255,123,114,0.05); border-radius: 8px; margin: 12px; }
+.results-empty { padding: 30px; text-align: center; color: var(--text3); font-size: 12px; }
+.results-empty kbd { background: var(--bg3); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+
+/* ===== EXAMPLES ===== */
+.examples-dropdown { position: relative; display: inline-block; }
+.examples-menu {
+  display: none; position: absolute; top: calc(100% + 4px); right: 0;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+  min-width: 380px; max-height: 380px; overflow: auto; z-index: 200;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.examples-menu.show { display: block; }
+.example-item {
+  padding: 7px 12px; cursor: pointer; font-size: 11px;
+  border-bottom: 1px solid var(--border); transition: background 0.1s;
+  display: flex; gap: 6px; align-items: flex-start;
+}
+.example-item:last-child { border-bottom: none; }
+.example-item:hover { background: var(--bg4); }
+.example-num { color: var(--text3); font-weight: 600; font-size: 10px; min-width: 18px; font-family: 'JetBrains Mono', monospace; }
+.example-info { flex: 1; }
+.example-name { color: var(--text); font-weight: 500; margin-bottom: 1px; font-size: 11px; }
+.example-sql { color: var(--text3); font-size: 10px; font-family: 'JetBrains Mono', monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+
+/* ===== DATA FLOW ===== */
+#dataFlow { padding: 0; }
+#dataFlow:empty { display: none; }
+.df-card {
+  margin-bottom: 12px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--bg2); overflow: hidden;
+}
+.df-card-header {
+  display: flex; align-items: flex-start; gap: 8px; padding: 6px 12px;
+  font-size: 10px; font-weight: 600; border-bottom: 1px solid var(--border);
+  font-family: 'JetBrains Mono', monospace; line-height: 1.4;
+}
+.df-card-header > span:nth-child(2) { flex: 1; min-width: 0; word-break: break-word; }
+.df-card-header .df-step-num {
+  width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0;
+}
+.df-card-header .df-count {
+  margin-left: auto; font-weight: 400; color: var(--text3); font-size: 10px;
+}
+.df-card-body { display: flex; gap: 6px; padding: 6px; }
+.df-card-body.df-single { display: block; }
+.df-half { flex: 1; min-width: 0; }
+.df-half-label { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); margin-bottom: 4px; padding: 0 4px; }
+.df-mini-table { width: 100%; border-collapse: collapse; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+.df-mini-table th { padding: 2px 5px; text-align: left; font-weight: 600; color: var(--text2); border-bottom: 1px solid var(--border); white-space: nowrap; font-size: 9px; }
+.df-mini-table td { padding: 2px 5px; white-space: nowrap; color: var(--text2); border-bottom: 1px solid rgba(48,54,61,0.5); }
+.df-mini-table tr.df-pass td { color: var(--green); }
+.df-mini-table tr.df-fail td { color: var(--text3); text-decoration: line-through; opacity: 0.6; }
+.df-mini-table .df-null { color: var(--text3); font-style: italic; }
+.df-mini-table .df-more { color: var(--text3); font-style: italic; font-size: 9px; }
+.df-mini-table .df-new-col { color: var(--purple); }
+.df-arrow { text-align: center; color: var(--text3); font-size: 14px; padding: 4px 0; }
+/* Step colors */
+.df-from .df-step-num { background: rgba(63,185,80,0.2); color: var(--green); }
+.df-from .df-card-header { color: var(--green); }
+.df-join .df-step-num { background: rgba(188,140,255,0.2); color: var(--purple); }
+.df-join .df-card-header { color: var(--purple); }
+.df-where .df-step-num { background: rgba(210,153,34,0.2); color: var(--yellow); }
+.df-where .df-card-header { color: var(--yellow); }
+.df-group .df-step-num { background: rgba(247,120,186,0.2); color: var(--pink); }
+.df-group .df-card-header { color: var(--pink); }
+.df-having .df-step-num { background: rgba(255,123,114,0.2); color: var(--red); }
+.df-having .df-card-header { color: var(--red); }
+.df-select .df-step-num { background: rgba(88,166,255,0.2); color: var(--blue); }
+.df-select .df-card-header { color: var(--blue); }
+.df-order .df-step-num { background: rgba(86,212,221,0.2); color: var(--cyan); }
+.df-order .df-card-header { color: var(--cyan); }
+
+/* ===== SCROLLBAR ===== */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--border2); }
+
+/* ===== RESIZE ===== */
+.resize-h {
+  height: 4px; cursor: row-resize; background: transparent; flex-shrink: 0;
+  transition: background 0.15s; z-index: 10;
+}
+.resize-h:hover, .resize-h.dragging { background: var(--blue); }
+.resize-v {
+  width: 4px; cursor: col-resize; background: transparent; flex-shrink: 0;
+  transition: background 0.15s; z-index: 10;
+}
+.resize-v:hover, .resize-v.dragging { background: var(--blue); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1><span>SQL</span> Vizualizér</h1>
+    <span style="font-size:11px;color:var(--text3)">4IT218 — Oracle SQL</span>
+  </div>
+
+  <div class="main-content">
+    <!-- LEVÝ SLOUPEC -->
+    <div class="col-left" id="colLeft">
+      <div class="editor-section" id="editorSection">
+        <div class="editor-toolbar">
+          <div class="editor-toolbar-left">
+            <span class="editor-toolbar-title">SQL Editor</span>
+          </div>
+          <div class="editor-toolbar-right">
+            <div class="examples-dropdown">
+              <button class="btn" id="btnExamples" onclick="toggleExamples()">Příklady ▾</button>
+              <div class="examples-menu" id="examplesMenu"></div>
+            </div>
+            <button class="btn btn-primary" onclick="executeQuery()">▶ Spustit <kbd>Ctrl+Enter</kbd></button>
+          </div>
+        </div>
+        <div class="editor-wrap" id="editorWrap">
+          <div class="editor-line-numbers" id="lineNumbers">1</div>
+          <div class="editor-highlight" id="editorHighlight"></div>
+          <textarea class="editor-textarea" id="editorTextarea" spellcheck="false" placeholder="Napiš SQL dotaz..."></textarea>
+        </div>
+      </div>
+      <div class="resize-h" id="resizeEditorFlow"></div>
+      <div class="dataflow-section" id="dataflowSection">
+        <div class="dataflow-header">
+          <div class="timeline-top">
+            <span class="timeline-title">Průběh zpracování</span>
+            <span class="timeline-step-label" id="timelineLabel"></span>
+          </div>
+          <div class="timeline-controls" id="timelineControls" style="display:none">
+            <button class="tl-btn" id="tlPrev" title="Předchozí krok">◀</button>
+            <button class="tl-btn" id="tlPlay" title="Přehrát/Pozastavit">▶</button>
+            <button class="tl-btn" id="tlNext" title="Další krok">▶</button>
+            <input type="range" class="timeline-slider" id="timelineSlider" min="0" max="0" value="0">
+          </div>
+        </div>
+        <div class="dataflow-wrap" id="dataFlow"></div>
+      </div>
+    </div>
+
+    <!-- RESIZE mezi sloupci -->
+    <div class="resize-v" id="resizeColumns"></div>
+
+    <!-- PRAVÝ SLOUPEC -->
+    <div class="col-right" id="colRight">
+      <div class="pipeline-section" id="pipelineSection">
+        <div class="pipeline-header"><span class="pipeline-header-title">Vizualizace tabulek</span></div>
+        <div class="pipeline-wrap" id="pipelineWrap">
+          <div class="pipeline-tables" id="pipelineTables">
+            <svg class="pipeline-svg" id="pipelineSvg"></svg>
+          </div>
+        </div>
+        <div class="flow-bar" id="flowBar">
+          <span class="flow-label">Pořadí vykonání:</span>
+        </div>
+      </div>
+      <div class="resize-h" id="resizePipelineResults"></div>
+      <div class="results-section" id="resultsSection">
+        <div class="results-header">
+          <span class="results-header-title">Výsledky</span>
+          <div class="results-status" id="resultsStatus"></div>
+        </div>
+        <div class="results-wrap" id="resultsWrap">
+          <div class="results-empty">Napiš SQL dotaz a stiskni <kbd>Ctrl+Enter</kbd> pro spuštění</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Timeline state (declared early so updatePipeline can reference)
+var timelineSteps = [];
+var timelinePos = 0;
+
+// ============================================================
+// DATABASE DATA
+// ============================================================
+const DB = {
+  ODDEL: {
+    columns: ['CIS_ODD','NAZEV','SEF'],
+    pk: 'CIS_ODD',
+    rows: [
+      {CIS_ODD:1, NAZEV:'PROJEKCE', SEF:6},
+      {CIS_ODD:2, NAZEV:'KNIHOVNA', SEF:12},
+      {CIS_ODD:3, NAZEV:'PROGRAMOVANI', SEF:20},
+      {CIS_ODD:4, NAZEV:'BUFET', SEF:31},
+      {CIS_ODD:6, NAZEV:'SKLAD', SEF:41},
+      {CIS_ODD:7, NAZEV:'STB', SEF:null},
+      {CIS_ODD:8, NAZEV:'PROVOZ POCITACE', SEF:51},
+      {CIS_ODD:10, NAZEV:'REDITELSTVI', SEF:77},
+    ]
+  },
+  ZAM: {
+    columns: ['OS_CIS','JMENO','FCE','PLAT','TITUL','CIS_ODD','NADR'],
+    pk: 'OS_CIS',
+    rows: [
+      {OS_CIS:1, JMENO:'KONADRA', FCE:'POSLICEK', PLAT:5400, TITUL:null, CIS_ODD:1, NADR:6},
+      {OS_CIS:2, JMENO:'SYKORA', FCE:'BESTBOY', PLAT:6000, TITUL:null, CIS_ODD:1, NADR:6},
+      {OS_CIS:3, JMENO:'STRNAD', FCE:'SVACINAR', PLAT:7500, TITUL:null, CIS_ODD:1, NADR:6},
+      {OS_CIS:4, JMENO:'KOS', FCE:'PROJEKTANT', PLAT:10500, TITUL:'ING', CIS_ODD:1, NADR:6},
+      {OS_CIS:5, JMENO:'KOS', FCE:'PROJEKTANT', PLAT:10800, TITUL:'ING', CIS_ODD:1, NADR:6},
+      {OS_CIS:6, JMENO:'VOREL', FCE:'BOSS', PLAT:12000, TITUL:'ING', CIS_ODD:1, NADR:7},
+      {OS_CIS:7, JMENO:'DATEL', FCE:'BOSS', PLAT:12600, TITUL:'RNDR', CIS_ODD:1, NADR:77},
+      {OS_CIS:8, JMENO:'MALY', FCE:'POSLICEK', PLAT:6000, TITUL:null, CIS_ODD:2, NADR:11},
+      {OS_CIS:9, JMENO:'DLOUHY', FCE:'KNIHOVNIK', PLAT:9000, TITUL:null, CIS_ODD:2, NADR:11},
+      {OS_CIS:10, JMENO:'VYSOKY', FCE:'KNIHOVNIK', PLAT:10500, TITUL:null, CIS_ODD:2, NADR:11},
+      {OS_CIS:11, JMENO:'TLUSTY', FCE:'KNIHOVNIK', PLAT:11100, TITUL:'ING', CIS_ODD:2, NADR:13},
+      {OS_CIS:12, JMENO:'TLUSTY', FCE:'SVACINAR', PLAT:6000, TITUL:null, CIS_ODD:2, NADR:13},
+      {OS_CIS:13, JMENO:'OTYLY', FCE:'BOSS', PLAT:12000, TITUL:'ING', CIS_ODD:2, NADR:14},
+      {OS_CIS:14, JMENO:'OBROVSKY', FCE:'BOSS', PLAT:13500, TITUL:'RNDR', CIS_ODD:2, NADR:77},
+      {OS_CIS:15, JMENO:'CERNY', FCE:'PROGRAMATOR', PLAT:7500, TITUL:null, CIS_ODD:3, NADR:21},
+      {OS_CIS:16, JMENO:'CERVENY', FCE:'PROGRAMATOR', PLAT:9000, TITUL:null, CIS_ODD:3, NADR:21},
+      {OS_CIS:17, JMENO:'ZELENY', FCE:'PROGRAMATOR', PLAT:10500, TITUL:'ING', CIS_ODD:3, NADR:21},
+      {OS_CIS:18, JMENO:'ZELENY', FCE:'PROGRAMATOR', PLAT:10500, TITUL:'ING', CIS_ODD:3, NADR:21},
+      {OS_CIS:19, JMENO:'FIALKA', FCE:'PROGRAMATOR', PLAT:10500, TITUL:'ING', CIS_ODD:3, NADR:21},
+      {OS_CIS:20, JMENO:'FIALOVA', FCE:'PROGRAMATOR', PLAT:10200, TITUL:'RNDR', CIS_ODD:3, NADR:21},
+      {OS_CIS:21, JMENO:'ZLATUSKA', FCE:'BOSS', PLAT:13500, TITUL:'RNDR', CIS_ODD:3, NADR:77},
+      {OS_CIS:31, JMENO:'SEBESTOVA', FCE:'BOSS', PLAT:8400, TITUL:null, CIS_ODD:4, NADR:77},
+      {OS_CIS:32, JMENO:'MACHOVA', FCE:'BUFETACKA', PLAT:7500, TITUL:null, CIS_ODD:4, NADR:31},
+      {OS_CIS:33, JMENO:'HORACKOVA', FCE:'UKLIZECKA', PLAT:7500, TITUL:null, CIS_ODD:4, NADR:31},
+      {OS_CIS:34, JMENO:'HORACKOVA', FCE:'BUFETACKA', PLAT:7800, TITUL:null, CIS_ODD:4, NADR:31},
+      {OS_CIS:35, JMENO:'PAZOUTOVA', FCE:'MYCKA NADOBI', PLAT:6600, TITUL:null, CIS_ODD:4, NADR:31},
+      {OS_CIS:36, JMENO:'KADRNOZKOVA', FCE:'MYCKA NADOBI', PLAT:6600, TITUL:null, CIS_ODD:4, NADR:31},
+      {OS_CIS:37, JMENO:'JONATANOVA', FCE:'UKLIZECKA', PLAT:6600, TITUL:null, CIS_ODD:4, NADR:31},
+      {OS_CIS:41, JMENO:'CECH', FCE:'BOSS', PLAT:9000, TITUL:'ING', CIS_ODD:6, NADR:77},
+      {OS_CIS:42, JMENO:'SLOVAK', FCE:'SKLADNIK', PLAT:6600, TITUL:null, CIS_ODD:6, NADR:41},
+      {OS_CIS:43, JMENO:'NEMEC', FCE:'SKLADNIK', PLAT:7200, TITUL:null, CIS_ODD:6, NADR:41},
+      {OS_CIS:44, JMENO:'CECH', FCE:'SKLADNIK', PLAT:7500, TITUL:null, CIS_ODD:6, NADR:41},
+      {OS_CIS:51, JMENO:'KOCOUR', FCE:'BOSS', PLAT:12900, TITUL:'DOC', CIS_ODD:8, NADR:77},
+      {OS_CIS:52, JMENO:'KOCOUR', FCE:'SEF TECHNIK', PLAT:11400, TITUL:'ING', CIS_ODD:8, NADR:51},
+      {OS_CIS:53, JMENO:'KOBYLKA', FCE:'TECHNIK', PLAT:10500, TITUL:'ING', CIS_ODD:8, NADR:52},
+      {OS_CIS:54, JMENO:'KOCICKA', FCE:'TECHNIK', PLAT:10200, TITUL:null, CIS_ODD:8, NADR:52},
+      {OS_CIS:55, JMENO:'PAPOUSEK', FCE:'TECHNIK', PLAT:10200, TITUL:null, CIS_ODD:8, NADR:52},
+      {OS_CIS:77, JMENO:'SEFICEK', FCE:'REDITEL', PLAT:15000, TITUL:'DOC', CIS_ODD:10, NADR:null},
+    ]
+  },
+  UKOLY: {
+    columns: ['CIS_UK','POPIS','OS_CIS','DATUM'],
+    pk: 'CIS_UK',
+    rows: [
+      {CIS_UK:101, POPIS:'PRINEST POSTU', OS_CIS:1, DATUM:'10/02/15'},
+      {CIS_UK:102, POPIS:'ZAPLATIT SLOZENKY', OS_CIS:1, DATUM:'02/10/15'},
+      {CIS_UK:105, POPIS:'POSTAVIT PODRIZENE DO LATE', OS_CIS:21, DATUM:'10/02/15'},
+      {CIS_UK:106, POPIS:'ROZDELIT PRACI NA PROJEKTU FIS', OS_CIS:21, DATUM:'02/10/15'},
+      {CIS_UK:107, POPIS:'ROZDELIT PRACI NA PROJEKTU KIS', OS_CIS:7, DATUM:'02/09/15'},
+      {CIS_UK:108, POPIS:'DOJIT PRO SALAM A PIVKO', OS_CIS:3, DATUM:'02/11/15'},
+      {CIS_UK:109, POPIS:'SEHNAT NECO NA ZUB', OS_CIS:12, DATUM:'15/10/15'},
+      {CIS_UK:110, POPIS:'ZARADIT NOVE TITULY', OS_CIS:10, DATUM:'22/12/15'},
+      {CIS_UK:111, POPIS:'DOKONCIT PROGRAM X57', OS_CIS:19, DATUM:'02/01/15'},
+      {CIS_UK:112, POPIS:'ODLADIT ROZDELANE PROGRAMY', OS_CIS:20, DATUM:'02/12/15'},
+      {CIS_UK:113, POPIS:'ZDOKUMENTOVAT PROGRAMY', OS_CIS:19, DATUM:'02/12/15'},
+      {CIS_UK:114, POPIS:'PROVEST INVENTURU SKLADU C.13', OS_CIS:42, DATUM:'02/06/15'},
+      {CIS_UK:115, POPIS:'KONECNE UKLIDIT', OS_CIS:37, DATUM:'10/07/15'},
+      {CIS_UK:120, POPIS:'SEHNAT NOVE LIDI DO TYMU', OS_CIS:7, DATUM:'30/10/15'},
+    ]
+  }
+};
+
+// ============================================================
+// SQL TOKENIZER
+// ============================================================
+const TOKEN_PATTERNS = [
+  { type: 'comment_line', regex: /--[^\n]*/ },
+  { type: 'comment_block', regex: /\/\*[\s\S]*?\*\// },
+  { type: 'string', regex: /'(?:[^']|'')*'/ },
+  { type: 'dqstring', regex: /"(?:[^"]|"")*"/ },
+  { type: 'number', regex: /\b\d+(?:\.\d+)?\b/ },
+  { type: 'concat', regex: /\|\|/ },
+  { type: 'op', regex: /[<>!=]=?|[+\-\/]/ },
+  { type: 'paren_open', regex: /\(/ },
+  { type: 'paren_close', regex: /\)/ },
+  { type: 'comma', regex: /,/ },
+  { type: 'dot', regex: /\./ },
+  { type: 'star', regex: /\*/ },
+  { type: 'word', regex: /[A-Za-z_ČŠŽÁÉÍÓÚŮÝŘŤĎŇčšžáéíóúůýřťďň][A-Za-z0-9_ČŠŽÁÉÍÓÚŮÝŘŤĎŇčšžáéíóúůýřťďň]*/ },
+  { type: 'ws', regex: /\s+/ },
+];
+
+function tokenize(sql) {
+  const tokens = [];
+  let pos = 0;
+  while (pos < sql.length) {
+    let matched = false;
+    for (const pat of TOKEN_PATTERNS) {
+      const m = sql.slice(pos).match(new RegExp('^(' + pat.regex.source + ')'));
+      if (m) { tokens.push({ type: pat.type, value: m[1], pos }); pos += m[1].length; matched = true; break; }
+    }
+    if (!matched) { tokens.push({ type: 'unknown', value: sql[pos], pos }); pos++; }
+  }
+  return tokens;
+}
+
+// ============================================================
+// SYNTAX HIGHLIGHTER
+// ============================================================
+const SELECT_KW = new Set(['SELECT','DISTINCT']);
+const FROM_KW = new Set(['FROM']);
+const WHERE_KW = new Set(['WHERE','AND','OR','NOT','IN','BETWEEN','LIKE','IS','NULL','EXISTS']);
+const JOIN_KW = new Set(['JOIN','INNER','LEFT','RIGHT','FULL','OUTER','CROSS','ON','USING','NATURAL']);
+const AGG_FN = new Set(['COUNT','SUM','AVG','MAX','MIN']);
+const SCALAR_FN = new Set(['ROUND','UPPER','LOWER','LENGTH','SUBSTR','TRIM','ABS','NVL','COALESCE','MOD','CEIL','FLOOR','TRUNC','REPLACE','LPAD','RPAD','INSTR','INITCAP','TO_CHAR','TO_NUMBER','DECODE','GREATEST','LEAST','SIGN','POWER','SQRT']);
+
+function highlightSQL(sql) {
+  const tokens = tokenize(sql);
+  let html = '', clause = '', parenDepth = 0, subqueryStack = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i], esc = escapeHTML(t.value);
+    if (t.type === 'comment_line' || t.type === 'comment_block') { html += `<span class="syn-comment">${esc}</span>`; continue; }
+    if (t.type === 'string' || t.type === 'dqstring') { html += `<span class="syn-string">${esc}</span>`; continue; }
+    if (t.type === 'number') { html += `<span class="syn-number">${esc}</span>`; continue; }
+    if (t.type === 'ws') { html += esc; continue; }
+    if (t.type === 'comma') { html += `<span class="syn-comma">${esc}</span>`; continue; }
+    if (t.type === 'dot') { html += `<span class="syn-dot">${esc}</span>`; continue; }
+    if (t.type === 'paren_open') {
+      parenDepth++;
+      let j = i + 1; while (j < tokens.length && tokens[j].type === 'ws') j++;
+      if (j < tokens.length && tokens[j].type === 'word' && tokens[j].value.toUpperCase() === 'SELECT') subqueryStack.push(clause);
+      html += `<span class="syn-paren">${esc}</span>`; continue;
+    }
+    if (t.type === 'paren_close') {
+      parenDepth--;
+      if (subqueryStack.length > 0 && parenDepth < subqueryStack.length) clause = subqueryStack.pop() || '';
+      html += `<span class="syn-paren">${esc}</span>`; continue;
+    }
+    if (t.type === 'concat' || t.type === 'op') { html += `<span class="syn-operator">${esc}</span>`; continue; }
+    if (t.type === 'star') { html += `<span class="syn-star">${esc}</span>`; continue; }
+    if (t.type === 'word') {
+      const w = t.value.toUpperCase();
+      if (w === 'SELECT' || w === 'DISTINCT') { clause = 'select'; html += `<span class="syn-select">${esc}</span>`; continue; }
+      if (w === 'FROM') { clause = 'from'; html += `<span class="syn-from">${esc}</span>`; continue; }
+      if (w === 'WHERE') { clause = 'where'; html += `<span class="syn-where">${esc}</span>`; continue; }
+      if ((w === 'JOIN' || w === 'INNER' || w === 'LEFT' || w === 'RIGHT' || w === 'FULL' || w === 'CROSS' || w === 'NATURAL') && isJoinCtx(tokens, i)) { clause = 'join'; html += `<span class="syn-join">${esc}</span>`; continue; }
+      if (w === 'ON' || w === 'USING') { clause = 'join'; html += `<span class="syn-join">${esc}</span>`; continue; }
+      if (w === 'GROUP') { clause = 'group'; html += `<span class="syn-group">${esc}</span>`; continue; }
+      if (w === 'HAVING') { clause = 'having'; html += `<span class="syn-having">${esc}</span>`; continue; }
+      if (w === 'ORDER') { clause = 'order'; html += `<span class="syn-order">${esc}</span>`; continue; }
+      if (w === 'BY' && (clause === 'group' || clause === 'order')) { html += `<span class="${clause === 'group' ? 'syn-group' : 'syn-order'}">${esc}</span>`; continue; }
+      if (AGG_FN.has(w)) { html += `<span class="syn-agg">${esc}</span>`; continue; }
+      if (WHERE_KW.has(w) && (clause === 'where' || clause === 'having')) { html += `<span class="${clause === 'having' ? 'syn-having' : 'syn-where'}">${esc}</span>`; continue; }
+      if (w === 'ASC' || w === 'DESC') { html += `<span class="syn-order">${esc}</span>`; continue; }
+      if (w === 'AS') { html += `<span class="syn-alias">${esc}</span>`; continue; }
+      html += esc; continue;
+    }
+    html += esc;
+  }
+  return html;
+}
+
+function isJoinCtx(tokens, idx) {
+  const w = tokens[idx].value.toUpperCase();
+  if (w === 'JOIN') return true;
+  for (let i = idx + 1; i < tokens.length && i < idx + 4; i++) {
+    if (tokens[i].type === 'ws') continue;
+    if (tokens[i].type === 'word' && tokens[i].value.toUpperCase() === 'JOIN') return true;
+    break;
+  }
+  return false;
+}
+
+function escapeHTML(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ============================================================
+// SQL PARSER
+// ============================================================
+function parseSQL(sql) {
+  sql = sql.replace(/--[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  const trimmed = sql.trim().replace(/;+\s*$/, '');
+  if (!trimmed) throw new Error('Prázdný dotaz');
+  const tokens = tokenize(trimmed).filter(t => t.type !== 'ws');
+  if (tokens.length === 0) throw new Error('Prázdný dotaz');
+  if (tokens[0].type !== 'word' || tokens[0].value.toUpperCase() !== 'SELECT') throw new Error('Dotaz musí začínat slovem SELECT');
+  return parseSelect(tokens, 0);
+}
+
+function parseSelect(tokens, start) {
+  let pos = start;
+  const q = { type:'select', distinct:false, columns:[], from:[], joins:[], where:null, groupBy:[], having:null, orderBy:[] };
+  pos++;
+  if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'DISTINCT') { q.distinct = true; pos++; }
+  const cr = parseColumnList(tokens, pos); q.columns = cr.columns; pos = cr.pos;
+  if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'FROM') { pos++; const fr = parseFromClause(tokens, pos); q.from = fr.tables; pos = fr.pos; }
+  while (pos < tokens.length) { const w = tokens[pos].type === 'word' ? tokens[pos].value.toUpperCase() : ''; if (['JOIN','INNER','LEFT','RIGHT','FULL','CROSS','NATURAL'].includes(w)) { const jr = parseJoin(tokens, pos); q.joins.push(jr.join); pos = jr.pos; } else break; }
+  if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'WHERE') { pos++; const wr = parseExpression(tokens, pos, ['GROUP','HAVING','ORDER']); q.where = wr.expr; pos = wr.pos; }
+  if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'GROUP') { pos++; if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'BY') pos++; const gr = parseExpressionList(tokens, pos, ['HAVING','ORDER']); q.groupBy = gr.exprs; pos = gr.pos; }
+  if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'HAVING') { pos++; const hr = parseExpression(tokens, pos, ['ORDER']); q.having = hr.expr; pos = hr.pos; }
+  if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'ORDER') { pos++; if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'BY') pos++; const or = parseOrderByList(tokens, pos); q.orderBy = or.items; pos = or.pos; }
+  return q;
+}
+function parseColumnList(tokens, pos) { const cols=[]; while(pos<tokens.length){const w=tokens[pos].type==='word'?tokens[pos].value.toUpperCase():'';if(['FROM','WHERE','GROUP','HAVING','ORDER'].includes(w))break;if(tokens[pos].type==='star'){cols.push({type:'star'});pos++;}else{const er=parseExpr(tokens,pos);const col={type:'expr',expr:er.expr,alias:null};pos=er.pos;if(pos<tokens.length&&tokens[pos].type==='word'&&tokens[pos].value.toUpperCase()==='AS'){pos++;if(pos<tokens.length){col.alias=tokens[pos].type==='dqstring'?tokens[pos].value.slice(1,-1):tokens[pos].value;pos++;}}else if(pos<tokens.length&&tokens[pos].type==='word'){const nw=tokens[pos].value.toUpperCase();if(!['FROM','WHERE','GROUP','HAVING','ORDER','JOIN','INNER','LEFT','RIGHT','FULL','CROSS','NATURAL','ON','USING'].includes(nw)){col.alias=tokens[pos].value;pos++;}}cols.push(col);}if(pos<tokens.length&&tokens[pos].type==='comma'){pos++;continue;}break;}return{columns:cols,pos};}
+function parseFromClause(tokens, pos) { const tables=[]; while(pos<tokens.length){const w=tokens[pos].type==='word'?tokens[pos].value.toUpperCase():'';if(['WHERE','GROUP','HAVING','ORDER','JOIN','INNER','LEFT','RIGHT','FULL','CROSS','NATURAL'].includes(w))break;if(tokens[pos].type==='paren_open'){pos++;const sq=parseSelect(tokens,pos);let d=1;while(pos<tokens.length&&d>0){if(tokens[pos].type==='paren_open')d++;else if(tokens[pos].type==='paren_close'){d--;if(d===0){pos++;break;}}pos++;}let al=null;if(pos<tokens.length&&tokens[pos].type==='word'&&tokens[pos].value.toUpperCase()==='AS')pos++;if(pos<tokens.length&&tokens[pos].type==='word'){const nw=tokens[pos].value.toUpperCase();if(!['WHERE','GROUP','HAVING','ORDER','JOIN','INNER','LEFT','RIGHT','FULL','CROSS','NATURAL'].includes(nw)){al=tokens[pos].value;pos++;}}tables.push({type:'subquery',query:sq,alias:al});}else if(tokens[pos].type==='word'){const t={type:'table',name:tokens[pos].value.toUpperCase(),alias:null};pos++;if(pos<tokens.length&&tokens[pos].type==='word'){const nw=tokens[pos].value.toUpperCase();if(nw==='AS'){pos++;if(pos<tokens.length&&tokens[pos].type==='word'){t.alias=tokens[pos].value.toUpperCase();pos++;}}else if(!['WHERE','GROUP','HAVING','ORDER','JOIN','INNER','LEFT','RIGHT','FULL','CROSS','NATURAL','ON','USING'].includes(nw)){t.alias=tokens[pos].value.toUpperCase();pos++;}}tables.push(t);}else break;if(pos<tokens.length&&tokens[pos].type==='comma'){pos++;continue;}break;}return{tables,pos};}
+function parseJoin(tokens, pos) { let jt='INNER';const w=tokens[pos].value.toUpperCase();if(w==='LEFT'){jt='LEFT';pos++;if(pos<tokens.length&&tokens[pos].type==='word'&&tokens[pos].value.toUpperCase()==='OUTER')pos++;}else if(w==='RIGHT'){jt='RIGHT';pos++;if(pos<tokens.length&&tokens[pos].type==='word'&&tokens[pos].value.toUpperCase()==='OUTER')pos++;}else if(w==='FULL'){jt='FULL';pos++;if(pos<tokens.length&&tokens[pos].type==='word'&&tokens[pos].value.toUpperCase()==='OUTER')pos++;}else if(w==='CROSS'){jt='CROSS';pos++;}else if(w==='INNER')pos++;else if(w==='NATURAL'){jt='NATURAL';pos++;}if(pos<tokens.length&&tokens[pos].type==='word'&&tokens[pos].value.toUpperCase()==='JOIN')pos++;const tn=tokens[pos].value.toUpperCase();pos++;let al=null;if(pos<tokens.length&&tokens[pos].type==='word'){const nw=tokens[pos].value.toUpperCase();if(nw==='AS'){pos++;if(pos<tokens.length){al=tokens[pos].value.toUpperCase();pos++;}}else if(!['ON','USING','WHERE','GROUP','HAVING','ORDER','JOIN','INNER','LEFT','RIGHT','FULL','CROSS','NATURAL'].includes(nw)){al=tokens[pos].value.toUpperCase();pos++;}}const j={type:jt,table:tn,alias:al,on:null,using:null};if(pos<tokens.length&&tokens[pos].type==='word'&&tokens[pos].value.toUpperCase()==='ON'){pos++;const r=parseExpression(tokens,pos,['WHERE','GROUP','HAVING','ORDER','JOIN','INNER','LEFT','RIGHT','FULL','CROSS','NATURAL']);j.on=r.expr;pos=r.pos;}else if(pos<tokens.length&&tokens[pos].type==='word'&&tokens[pos].value.toUpperCase()==='USING'){pos++;if(pos<tokens.length&&tokens[pos].type==='paren_open'){pos++;j.using=[];while(pos<tokens.length&&tokens[pos].type!=='paren_close'){if(tokens[pos].type==='word')j.using.push(tokens[pos].value.toUpperCase());pos++;}if(pos<tokens.length)pos++;}}return{join:j,pos};}
+function parseExpression(tokens, pos, sw) { const r=parseExpr(tokens,pos,sw); return{expr:r.expr,pos:r.pos}; }
+function parseExpr(tokens, pos, sw) { return parseOr(tokens,pos,sw); }
+function parseOr(t,p,s){let l=parseAnd(t,p,s);p=l.pos;while(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='OR'){p++;const r=parseAnd(t,p,s);l={expr:{type:'binary',op:'OR',left:l.expr,right:r.expr},pos:r.pos};p=r.pos;}return l;}
+function parseAnd(t,p,s){let l=parseNot(t,p,s);p=l.pos;while(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='AND'){p++;const r=parseNot(t,p,s);l={expr:{type:'binary',op:'AND',left:l.expr,right:r.expr},pos:r.pos};p=r.pos;}return l;}
+function parseNot(t,p,s){if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='NOT'){p++;const i=parseNot(t,p,s);return{expr:{type:'unary',op:'NOT',operand:i.expr},pos:i.pos};}return parseComparison(t,p,s);}
+function parseComparison(t,p,s){let l=parseConcat(t,p,s);p=l.pos;if(p>=t.length)return l;if(t[p].type==='word'&&t[p].value.toUpperCase()==='IS'){p++;let n=false;if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='NOT'){n=true;p++;}if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='NULL'){p++;return{expr:{type:'is_null',expr:l.expr,not:n},pos:p};}}if(t[p].type==='word'&&t[p].value.toUpperCase()==='IN'){p++;if(p<t.length&&t[p].type==='paren_open'){p++;const v=[];while(p<t.length&&t[p].type!=='paren_close'){if(t[p].type==='comma'){p++;continue;}const x=parseExpr(t,p,s);v.push(x.expr);p=x.pos;}if(p<t.length)p++;return{expr:{type:'in',expr:l.expr,values:v},pos:p};}}if(t[p].type==='word'&&t[p].value.toUpperCase()==='NOT'&&p+1<t.length&&t[p+1].type==='word'&&t[p+1].value.toUpperCase()==='IN'){p+=2;if(p<t.length&&t[p].type==='paren_open'){p++;const v=[];while(p<t.length&&t[p].type!=='paren_close'){if(t[p].type==='comma'){p++;continue;}const x=parseExpr(t,p,s);v.push(x.expr);p=x.pos;}if(p<t.length)p++;return{expr:{type:'unary',op:'NOT',operand:{type:'in',expr:l.expr,values:v}},pos:p};}}if(t[p].type==='word'&&t[p].value.toUpperCase()==='BETWEEN'){p++;const lo=parseConcat(t,p,s);p=lo.pos;if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='AND')p++;const hi=parseConcat(t,p,s);p=hi.pos;return{expr:{type:'between',expr:l.expr,low:lo.expr,high:hi.expr},pos:p};}if(t[p].type==='word'&&t[p].value.toUpperCase()==='LIKE'){p++;const pa=parseConcat(t,p,s);return{expr:{type:'like',expr:l.expr,pattern:pa.expr},pos:pa.pos};}if(t[p].type==='word'&&t[p].value.toUpperCase()==='NOT'&&p+1<t.length&&t[p+1].type==='word'&&t[p+1].value.toUpperCase()==='LIKE'){p+=2;const pa=parseConcat(t,p,s);return{expr:{type:'unary',op:'NOT',operand:{type:'like',expr:l.expr,pattern:pa.expr}},pos:pa.pos};}if(t[p].type==='op'){const op=t[p].value;if(['=','!=','<>','<','>','<=','>='].includes(op)){p++;const r=parseConcat(t,p,s);return{expr:{type:'binary',op:op==='<>'?'!=':op,left:l.expr,right:r.expr},pos:r.pos};}}return l;}
+function parseConcat(t,p,s){let l=parseAddSub(t,p,s);p=l.pos;while(p<t.length&&t[p].type==='concat'){p++;const r=parseAddSub(t,p,s);l={expr:{type:'binary',op:'||',left:l.expr,right:r.expr},pos:r.pos};p=r.pos;}return l;}
+function parseAddSub(t,p,s){let l=parseMulDiv(t,p,s);p=l.pos;while(p<t.length&&t[p].type==='op'&&(t[p].value==='+'||t[p].value==='-')){const op=t[p].value;p++;const r=parseMulDiv(t,p,s);l={expr:{type:'binary',op,left:l.expr,right:r.expr},pos:r.pos};p=r.pos;}return l;}
+function parseMulDiv(t,p,s){let l=parseAtom(t,p,s);p=l.pos;while(p<t.length&&((t[p].type==='op'&&t[p].value==='/')||t[p].type==='star')){const op=t[p].type==='star'?'*':t[p].value;p++;const r=parseAtom(t,p,s);l={expr:{type:'binary',op,left:l.expr,right:r.expr},pos:r.pos};p=r.pos;}return l;}
+function parseAtom(t,p,s){if(p>=t.length)return{expr:{type:'literal',value:null},pos:p};const tk=t[p];if(s&&tk.type==='word'&&s.includes(tk.value.toUpperCase()))return{expr:{type:'literal',value:null},pos:p};if(tk.type==='word'&&tk.value.toUpperCase()==='NULL')return{expr:{type:'literal',value:null},pos:p+1};if(tk.type==='number'){const n=tk.value.includes('.')?parseFloat(tk.value):parseInt(tk.value,10);return{expr:{type:'literal',value:n},pos:p+1};}if(tk.type==='string'){const v=tk.value.slice(1,-1).replace(/''/g,"'");return{expr:{type:'literal',value:v},pos:p+1};}if(tk.type==='star')return{expr:{type:'star'},pos:p+1};if(tk.type==='paren_open'){p++;if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='SELECT'){const sq=parseSelect(t,p);let d=1;while(p<t.length&&d>0){if(t[p].type==='paren_open')d++;else if(t[p].type==='paren_close'){d--;if(d===0){p++;break;}}p++;}return{expr:{type:'subquery',query:sq},pos:p};}const inner=parseExpr(t,p,s);p=inner.pos;if(p<t.length&&t[p].type==='paren_close')p++;return{expr:inner.expr,pos:p};}if(tk.type==='word'&&AGG_FN.has(tk.value.toUpperCase())){const fn=tk.value.toUpperCase();p++;if(p<t.length&&t[p].type==='paren_open'){p++;let dist=false;if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='DISTINCT'){dist=true;p++;}if(p<t.length&&t[p].type==='star'){p++;if(p<t.length&&t[p].type==='paren_close')p++;return{expr:{type:'agg',fn,arg:{type:'star'},distinct:dist},pos:p};}const a=parseExpr(t,p,s);p=a.pos;if(p<t.length&&t[p].type==='paren_close')p++;return{expr:{type:'agg',fn,arg:a.expr,distinct:dist},pos:p};}}if(tk.type==='word'&&SCALAR_FN.has(tk.value.toUpperCase())&&p+1<t.length&&t[p+1].type==='paren_open'){const fn=tk.value.toUpperCase();p+=2;const args=[];while(p<t.length&&t[p].type!=='paren_close'){if(t[p].type==='comma'){p++;continue;}const a=parseExpr(t,p,s);args.push(a.expr);p=a.pos;}if(p<t.length)p++;return{expr:{type:'func',fn,args},pos:p};}if(tk.type==='word'){p++;if(p<t.length&&t[p].type==='dot'){p++;if(p<t.length&&(t[p].type==='word'||t[p].type==='star')){const c=t[p].type==='star'?'*':t[p].value.toUpperCase();p++;return{expr:{type:'column',table:tk.value.toUpperCase(),name:c},pos:p};}}return{expr:{type:'column',table:null,name:tk.value.toUpperCase()},pos:p};}if(tk.type==='op'&&tk.value==='-'){p++;const inner=parseAtom(t,p,s);return{expr:{type:'unary',op:'-',operand:inner.expr},pos:inner.pos};}p++;return{expr:{type:'literal',value:null},pos:p};}
+function parseExpressionList(t,p,s){const e=[];while(p<t.length){if(t[p].type==='word'&&s&&s.includes(t[p].value.toUpperCase()))break;const r=parseExpr(t,p,s);e.push(r.expr);p=r.pos;if(p<t.length&&t[p].type==='comma'){p++;continue;}break;}return{exprs:e,pos:p};}
+function parseOrderByList(t,p){const items=[];while(p<t.length){const r=parseExpr(t,p,[]);let d='ASC';p=r.pos;if(p<t.length&&t[p].type==='word'){const v=t[p].value.toUpperCase();if(v==='ASC'||v==='DESC'){d=v;p++;}}items.push({expr:r.expr,dir:d});if(p<t.length&&t[p].type==='comma'){p++;continue;}break;}return{items,pos:p};}
+
+// ============================================================
+// SQL EXECUTOR
+// ============================================================
+function executeAST(query) {
+  let rows = [];
+  const aliasMap = {};
+  if (query.from.length === 0) { rows = [{}]; }
+  else if (query.from.length === 1) {
+    const src = query.from[0];
+    if (src.type === 'subquery') { const sr = executeAST(src.query); rows = sr.rows.map(r => { const row = {}; for (const [k,v] of Object.entries(r)) { if (src.alias) row[src.alias.toUpperCase()+'.'+k] = v; row[k] = v; } return row; }); if (src.alias) aliasMap[src.alias.toUpperCase()] = '__subquery__'; }
+    else { const tbl = getTable(src.name); rows = tbl.rows.map(r => { const row = {}; for (const col of tbl.columns) { row[col]=r[col]; row[src.name+'.'+col]=r[col]; if(src.alias) row[src.alias+'.'+col]=r[col]; } return row; }); aliasMap[src.name]=src.name; if(src.alias) aliasMap[src.alias]=src.name; }
+  } else {
+    rows = [{}];
+    for (const src of query.from) { const tbl=getTable(src.name); const nr=[]; for(const ex of rows){for(const r of tbl.rows){const row={...ex};for(const col of tbl.columns){row[col]=r[col];row[src.name+'.'+col]=r[col];if(src.alias)row[src.alias+'.'+col]=r[col];}nr.push(row);}} rows=nr; aliasMap[src.name]=src.name; if(src.alias) aliasMap[src.alias]=src.name; }
+  }
+  for (const join of query.joins) {
+    const tbl=getTable(join.table); const ta=join.alias||join.table; aliasMap[join.table]=join.table; if(join.alias)aliasMap[join.alias]=join.table;
+    function storeJC(c,rr,v){for(const col of tbl.columns){c[ta+'.'+col]=v===null?null:rr[col];if(!join.alias)c[join.table+'.'+col]=v===null?null:rr[col];if(!(col in c))c[col]=v===null?null:rr[col];}}
+    if(join.using){const nr=[];for(const lr of rows){let m=false;for(const rr of tbl.rows){let ok=true;for(const col of join.using){if(!valuesEqual(lr[col],rr[col])){ok=false;break;}}if(ok){const c={...lr};storeJC(c,rr,1);nr.push(c);m=true;}}if(!m&&(join.type==='LEFT'||join.type==='FULL')){const c={...lr};storeJC(c,{},null);nr.push(c);}}rows=nr;}
+    else if(join.on){const nr=[];for(const lr of rows){let m=false;for(const rr of tbl.rows){const c={...lr};storeJC(c,rr,1);if(evalExpr(join.on,c)){nr.push(c);m=true;}}if(!m&&(join.type==='LEFT'||join.type==='FULL')){const c={...lr};storeJC(c,{},null);nr.push(c);}}rows=nr;}
+    else{const nr=[];for(const lr of rows){for(const rr of tbl.rows){const c={...lr};storeJC(c,rr,1);nr.push(c);}}rows=nr;}
+  }
+  if(query.where){rows=rows.filter(r=>evalExpr(query.where,r)===true);}
+  if(query.groupBy.length>0){const g=new Map();for(const r of rows){const k=query.groupBy.map(e=>{const v=evalExpr(e,r);return v===null?'__NULL__':String(v);}).join('|||');if(!g.has(k))g.set(k,[]);g.get(k).push(r);}const gr=[];for(const[,grs]of g)gr.push({__group__:grs,...grs[0]});rows=gr;}
+  else if(hasAgg(query.columns)||query.having){rows=[{__group__:rows,...(rows[0]||{})}];}
+  if(query.having){rows=rows.filter(r=>evalExpr(query.having,r)===true);}
+  const rc=[], rr=[];
+  for(const col of query.columns){if(col.type==='star'){const ts=[...query.from,...query.joins.map(j=>({name:j.table,alias:j.alias}))];for(const t of ts){if(t.type==='subquery'){if(rows.length>0)for(const k of Object.keys(rows[0])){if(k==='__group__')continue;if(!k.includes('.'))rc.push(k);}}else{const tb=getTable(t.name);for(const c of tb.columns)rc.push(c);}}}else{rc.push((col.alias||exprName(col.expr)).toUpperCase());}}
+  for(const row of rows){const res={};let ci=0;for(const col of query.columns){if(col.type==='star'){const ts=[...query.from,...query.joins.map(j=>({name:j.table,alias:j.alias}))];for(const t of ts){if(t.type==='subquery'){for(const k of Object.keys(row)){if(k==='__group__')continue;if(!k.includes('.')){res[k]=row[k];ci++;}}}else{const tb=getTable(t.name);for(const c of tb.columns){const al=t.alias||t.name;res[rc[ci]]=row[al+'.'+c]!==undefined?row[al+'.'+c]:row[c];ci++;}}}}else{res[rc[ci]]=evalExpr(col.expr,row);ci++;}}rr.push(res);}
+  let fr=rr;if(query.distinct){const seen=new Set();fr=[];for(const r of rr){const k=rc.map(c=>r[c]===null?'__NULL__':String(r[c])).join('|||');if(!seen.has(k)){seen.add(k);fr.push(r);}}}
+  if(query.orderBy.length>0){fr.sort((a,b)=>{for(const ob of query.orderBy){const va=evalExprR(ob.expr,a,rc),vb=evalExprR(ob.expr,b,rc),c=cmpVals(va,vb);if(c!==0)return ob.dir==='DESC'?-c:c;}return 0;});}
+  return{columns:rc,rows:fr};
+}
+function getTable(n){const u=n.toUpperCase();if(DB[u])return DB[u];throw new Error(`Tabulka "${n}" neexistuje. Dostupné: ${Object.keys(DB).join(', ')}`);}
+function valuesEqual(a,b){if(a===null||b===null)return false;return String(a).toUpperCase()===String(b).toUpperCase();}
+function evalExpr(e,r){if(!e)return null;switch(e.type){case'literal':return e.value;case'star':return null;case'column':{const n=e.name;if(e.table){const q=e.table+'.'+n;if(q in r)return r[q];}if(n in r)return r[n];for(const k of Object.keys(r))if(k.toUpperCase()===n||k.toUpperCase()===(e.table?e.table+'.'+n:''))return r[k];return null;}case'binary':{if(e.op==='AND')return evalExpr(e.left,r)===true&&evalExpr(e.right,r)===true;if(e.op==='OR')return evalExpr(e.left,r)===true||evalExpr(e.right,r)===true;const lv=evalExpr(e.left,r),rv=evalExpr(e.right,r);if(e.op==='||'){if(lv===null||rv===null)return null;return String(lv)+String(rv);}if(e.op==='+'){if(lv===null||rv===null)return null;return Number(lv)+Number(rv);}if(e.op==='-'){if(lv===null||rv===null)return null;return Number(lv)-Number(rv);}if(e.op==='*'){if(lv===null||rv===null)return null;return Number(lv)*Number(rv);}if(e.op==='/'){if(lv===null||rv===null)return null;if(Number(rv)===0)throw new Error('Dělení nulou');return Number(lv)/Number(rv);}if(lv===null||rv===null)return null;if(e.op==='=')return valuesEqual(lv,rv);if(e.op==='!=')return!valuesEqual(lv,rv);if(e.op==='<')return Number(lv)<Number(rv);if(e.op==='>')return Number(lv)>Number(rv);if(e.op==='<=')return Number(lv)<=Number(rv);if(e.op==='>=')return Number(lv)>=Number(rv);return null;}case'unary':{if(e.op==='NOT'){const v=evalExpr(e.operand,r);return v===null?null:!v;}if(e.op==='-'){const v=evalExpr(e.operand,r);return v===null?null:-Number(v);}return null;}case'is_null':{const v=evalExpr(e.expr,r);return e.not?v!==null:v===null;}case'like':{const v=evalExpr(e.expr,r),p=evalExpr(e.pattern,r);if(v===null||p===null)return null;const rx=new RegExp('^'+String(p).toUpperCase().replace(/%/g,'.*').replace(/_/g,'.')+'$');return rx.test(String(v).toUpperCase());}case'in':{const v=evalExpr(e.expr,r);if(v===null)return null;for(const val of e.values)if(valuesEqual(v,evalExpr(val,r)))return true;return false;}case'between':{const v=evalExpr(e.expr,r),lo=evalExpr(e.low,r),hi=evalExpr(e.high,r);if(v===null||lo===null||hi===null)return null;return Number(v)>=Number(lo)&&Number(v)<=Number(hi);}case'agg':{const g=r.__group__||[r],fn=e.fn;if(fn==='COUNT'){if(e.arg.type==='star')return g.length;let c=0;const sn=e.distinct?new Set():null;for(const x of g){const v=evalExpr(e.arg,x);if(v!==null){if(sn){const sv=String(v).toUpperCase();if(!sn.has(sv)){sn.add(sv);c++;}}else c++;}}return c;}const vs=[];const sn=e.distinct?new Set():null;for(const x of g){const v=evalExpr(e.arg,x);if(v!==null){if(sn){const sv=String(v).toUpperCase();if(!sn.has(sv)){sn.add(sv);vs.push(Number(v));}}else vs.push(Number(v));}}if(vs.length===0)return null;if(fn==='SUM')return vs.reduce((a,b)=>a+b,0);if(fn==='AVG')return Math.round((vs.reduce((a,b)=>a+b,0)/vs.length)*100)/100;if(fn==='MAX')return Math.max(...vs);if(fn==='MIN')return Math.min(...vs);return null;}case'func':{const args=e.args.map(a=>evalExpr(a,r));const fn=e.fn;if(fn==='ROUND'){const v=args[0],n=args[1]??0;if(v===null)return null;const f=Math.pow(10,Number(n));return Math.round(Number(v)*f)/f;}if(fn==='TRUNC'){const v=args[0],n=args[1]??0;if(v===null)return null;const f=Math.pow(10,Number(n));return Math.trunc(Number(v)*f)/f;}if(fn==='UPPER')return args[0]===null?null:String(args[0]).toUpperCase();if(fn==='LOWER')return args[0]===null?null:String(args[0]).toLowerCase();if(fn==='LENGTH')return args[0]===null?null:String(args[0]).length;if(fn==='SUBSTR'){if(args[0]===null)return null;const str=String(args[0]),st=Number(args[1])-1;return args[2]!=null?str.substr(st,Number(args[2])):str.substr(st);}if(fn==='TRIM')return args[0]===null?null:String(args[0]).trim();if(fn==='ABS')return args[0]===null?null:Math.abs(Number(args[0]));if(fn==='NVL')return args[0]===null?args[1]:args[0];if(fn==='COALESCE'){for(const a of args)if(a!==null)return a;return null;}if(fn==='MOD')return args[0]===null||args[1]===null?null:Number(args[0])%Number(args[1]);if(fn==='CEIL')return args[0]===null?null:Math.ceil(Number(args[0]));if(fn==='FLOOR')return args[0]===null?null:Math.floor(Number(args[0]));if(fn==='REPLACE'){if(args[0]===null)return null;return String(args[0]).split(String(args[1])).join(String(args[2]??''));}if(fn==='LPAD'){if(args[0]===null)return null;return String(args[0]).padStart(Number(args[1]),String(args[2]??' '));}if(fn==='RPAD'){if(args[0]===null)return null;return String(args[0]).padEnd(Number(args[1]),String(args[2]??' '));}if(fn==='INSTR'){if(args[0]===null||args[1]===null)return null;const i=String(args[0]).indexOf(String(args[1]));return i===-1?0:i+1;}if(fn==='INITCAP'){if(args[0]===null)return null;return String(args[0]).toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());}if(fn==='TO_CHAR')return args[0]===null?null:String(args[0]);if(fn==='TO_NUMBER')return args[0]===null?null:Number(args[0]);if(fn==='GREATEST'){const vs=args.filter(a=>a!==null);return vs.length===0?null:Math.max(...vs.map(Number));}if(fn==='LEAST'){const vs=args.filter(a=>a!==null);return vs.length===0?null:Math.min(...vs.map(Number));}if(fn==='SIGN')return args[0]===null?null:Math.sign(Number(args[0]));if(fn==='POWER')return args[0]===null||args[1]===null?null:Math.pow(Number(args[0]),Number(args[1]));if(fn==='SQRT')return args[0]===null?null:Math.sqrt(Number(args[0]));if(fn==='DECODE'){const v=args[0];for(let i=1;i<args.length-1;i+=2){if(valuesEqual(v,args[i]))return args[i+1];}return args.length%2===0?args[args.length-1]:null;}return null;}case'subquery':{const res=executeAST(e.query);if(res.rows.length===0)return null;return res.rows[0][res.columns[0]];}}return null;}
+function evalExprR(e,r,rc){if(e.type==='column'&&!e.table){for(const c of rc)if(c.toUpperCase()===e.name)return r[c];}return evalExpr(e,r);}
+function cmpVals(a,b){if(a===null&&b===null)return 0;if(a===null)return-1;if(b===null)return 1;if(typeof a==='number'&&typeof b==='number')return a-b;const na=Number(a),nb=Number(b);if(!isNaN(na)&&!isNaN(nb))return na-nb;return String(a).localeCompare(String(b));}
+function hasAgg(cols){for(const c of cols)if(c.type==='expr'&&exprHasAgg(c.expr))return true;return false;}
+function exprHasAgg(e){if(!e)return false;if(e.type==='agg')return true;if(e.type==='binary')return exprHasAgg(e.left)||exprHasAgg(e.right);if(e.type==='unary')return exprHasAgg(e.operand);return false;}
+function exprName(e){if(!e)return'?';if(e.type==='column')return e.name;if(e.type==='literal')return e.value===null?'NULL':String(e.value);if(e.type==='agg')return e.fn+'('+(e.arg.type==='star'?'*':exprName(e.arg))+')';if(e.type==='binary')return exprName(e.left)+e.op+exprName(e.right);return'?';}
+
+// ============================================================
+// PIPELINE: SCHEMA + JOIN LINES + FLOW STEPS
+// ============================================================
+function initPipeline() {
+  const container = document.getElementById('pipelineTables');
+  // Keep svg
+  const svg = document.getElementById('pipelineSvg');
+  container.innerHTML = '';
+  container.appendChild(svg);
+
+  for (const [name, tbl] of Object.entries(DB)) {
+    const div = document.createElement('div');
+    div.className = 'p-table';
+    div.dataset.table = name;
+    div.id = 'ptable-' + name;
+    let html = `<div class="p-table-name">${name}</div><div class="p-table-cols">`;
+    for (const col of tbl.columns) {
+      const pk = col === tbl.pk;
+      html += `<div class="p-col${pk ? ' p-col-pk' : ''}" data-col="${col}" id="pcol-${name}-${col}">${pk ? '🔑 ' : ''}${col}</div>`;
+    }
+    html += '</div>';
+    div.innerHTML = html;
+    container.appendChild(div);
+  }
+}
+
+function updatePipeline(sql) {
+  const tokens = tokenize(sql).filter(t => t.type !== 'ws');
+  const allTableNames = new Set(Object.keys(DB));
+  const tablesFrom = new Set(), tablesJoin = new Set();
+  const joinLinks = [];
+
+  // Pass 1: Build alias map (alias/name → real table name)
+  const aliasMap = {};
+  let cl = '';
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t.type !== 'word') continue;
+    const w = t.value.toUpperCase();
+    if (w === 'FROM') { cl = 'from'; continue; }
+    if (['JOIN','INNER','LEFT','RIGHT','FULL','CROSS','NATURAL'].includes(w) && isJoinCtx(tokens, i)) { cl = 'join'; continue; }
+    if (['ON','USING','WHERE','GROUP','HAVING','ORDER','SELECT'].includes(w)) { cl = ''; continue; }
+    if ((cl === 'from' || cl === 'join') && allTableNames.has(w)) {
+      aliasMap[w] = w;
+      if (cl === 'from') tablesFrom.add(w); else tablesJoin.add(w);
+      if (i + 1 < tokens.length && tokens[i+1].type === 'word') {
+        const nw = tokens[i+1].value.toUpperCase();
+        if (nw === 'AS' && i + 2 < tokens.length && tokens[i+2].type === 'word') {
+          aliasMap[tokens[i+2].value.toUpperCase()] = w;
+        } else if (!['ON','USING','WHERE','GROUP','HAVING','ORDER','JOIN','INNER','LEFT','RIGHT','FULL','CROSS','NATURAL'].includes(nw)) {
+          aliasMap[nw] = w;
+        }
+      }
+    }
+  }
+  function res(name) { return aliasMap[name.toUpperCase()] || name.toUpperCase(); }
+
+  // Table-specific column highlights: "TABLE\tCOL" → Set<cssClass>
+  const colHL = new Map();
+  function addHL(table, col, cls) {
+    const key = table + '\t' + col;
+    if (!colHL.has(key)) colHL.set(key, new Set());
+    colHL.get(key).add(cls);
+  }
+
+  // Pass 2: detect clauses, columns (table-aware), and join links
+  cl = '';
+  let lastJoinTable = null;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t.type !== 'word') continue;
+    const w = t.value.toUpperCase();
+
+    if (w === 'SELECT' || w === 'DISTINCT') { cl = 'select'; continue; }
+    if (w === 'FROM') { cl = 'from'; continue; }
+    if (w === 'WHERE') { cl = 'where'; continue; }
+    if (['JOIN','INNER','LEFT','RIGHT','FULL','CROSS','NATURAL'].includes(w) && isJoinCtx(tokens, i)) {
+      cl = 'join';
+      for (let j = i + 1; j < tokens.length; j++) {
+        if (tokens[j].type !== 'word') continue;
+        const jw = tokens[j].value.toUpperCase();
+        if (jw === 'JOIN') continue;
+        lastJoinTable = res(jw);
+        break;
+      }
+      continue;
+    }
+    if (w === 'ON') { cl = 'join_cond'; continue; }
+    if (w === 'USING') { cl = 'join_using'; continue; }
+    if (w === 'GROUP') { cl = 'group'; continue; }
+    if (w === 'HAVING') { cl = 'having'; continue; }
+    if (w === 'ORDER') { cl = 'order'; continue; }
+    if (['BY','AS','AND','OR','NOT','IN','BETWEEN','LIKE','IS','NULL','ASC','DESC'].includes(w)) continue;
+    if (AGG_FN.has(w)) continue;
+
+    // Skip table/alias names in FROM/JOIN context
+    if ((cl === 'from' || cl === 'join') && (allTableNames.has(w) || aliasMap[w])) continue;
+
+    // Map clause to CSS class
+    const clsMap = { select:'hl-select', where:'hl-where', join_cond:'hl-join-col', join_using:'hl-join-col', group:'hl-group', having:'hl-having', order:'hl-order' };
+    const hlCls = clsMap[cl];
+
+    // Check for table.column pattern (table-specific highlighting)
+    if (i + 2 < tokens.length && tokens[i+1].type === 'dot' && (tokens[i+2].type === 'word' || tokens[i+2].type === 'star')) {
+      const tblName = res(w);
+      const colName = tokens[i+2].value.toUpperCase();
+      if (colName !== '*' && hlCls) addHL(tblName, colName, hlCls);
+
+      // Detect JOIN ON condition: t1.col = t2.col
+      if (cl === 'join_cond' && i + 6 < tokens.length) {
+        let j = i + 3;
+        if (j < tokens.length && tokens[j].type === 'op' && tokens[j].value === '=') {
+          j++;
+          if (j + 2 < tokens.length && tokens[j].type === 'word' && tokens[j+1].type === 'dot' && tokens[j+2].type === 'word') {
+            const rt = res(tokens[j].value.toUpperCase());
+            const rc = tokens[j+2].value.toUpperCase();
+            joinLinks.push({ leftTable: tblName, leftCol: colName, rightTable: rt, rightCol: rc });
+          }
+        }
+      }
+      i += 2;
+      continue;
+    }
+
+    // USING columns → join link + highlight in both tables
+    if (cl === 'join_using') {
+      let isCol = false;
+      for (const tbl of Object.values(DB)) { if (tbl.columns.includes(w)) { isCol = true; break; } }
+      if (isCol) {
+        const fromTbls = [...tablesFrom];
+        if (fromTbls.length > 0 && lastJoinTable) {
+          joinLinks.push({ leftTable: fromTbls[0], leftCol: w, rightTable: lastJoinTable, rightCol: w });
+          addHL(fromTbls[0], w, 'hl-join-col');
+          addHL(lastJoinTable, w, 'hl-join-col');
+        }
+      }
+      continue;
+    }
+
+    // Bare column name → highlight in all tables that have it
+    if (hlCls) {
+      for (const [tblName, tbl] of Object.entries(DB)) {
+        if (tbl.columns.includes(w)) addHL(tblName, w, hlCls);
+      }
+    }
+  }
+
+  // When timeline is active, let it control highlights
+  if (timelineSteps.length > 0) {
+    updatePipelineForStep(timelinePos);
+    updateFlowForStep(timelinePos);
+    return;
+  }
+
+  // Update table highlights
+  document.querySelectorAll('.p-table').forEach(el => {
+    const n = el.dataset.table;
+    el.classList.remove('hl-from', 'hl-join');
+    if (tablesFrom.has(n)) el.classList.add('hl-from');
+    if (tablesJoin.has(n)) el.classList.add('hl-join');
+  });
+
+  // Update column highlights (table-specific!)
+  document.querySelectorAll('.p-col').forEach(el => {
+    const col = el.dataset.col;
+    const table = el.closest('.p-table')?.dataset.table;
+    el.classList.remove('hl-select', 'hl-where', 'hl-join-col', 'hl-group', 'hl-having', 'hl-order');
+    if (!table) return;
+    const key = table + '\t' + col;
+    const classes = colHL.get(key);
+    if (classes) classes.forEach(c => el.classList.add(c));
+  });
+
+  drawJoinLines(joinLinks);
+  updateFlow(sql);
+}
+
+function drawJoinLines(links) {
+  window.__lastLinks = links;
+  const svg = document.getElementById('pipelineSvg');
+  svg.innerHTML = '';
+  const container = document.getElementById('pipelineTables');
+  const cRect = container.getBoundingClientRect();
+
+  for (const link of links) {
+    const leftEl = document.getElementById('pcol-' + link.leftTable + '-' + link.leftCol);
+    const rightEl = document.getElementById('pcol-' + link.rightTable + '-' + link.rightCol);
+    if (!leftEl || !rightEl) continue;
+
+    const lRect = leftEl.getBoundingClientRect();
+    const rRect = rightEl.getBoundingClientRect();
+
+    // Self-join: curved line on the right side
+    if (link.leftTable === link.rightTable) {
+      const tEl = document.getElementById('ptable-' + link.leftTable);
+      if (!tEl) continue;
+      const tRect = tEl.getBoundingClientRect();
+      const tx = tRect.right - cRect.left + 8;
+      const ty1 = lRect.top + lRect.height/2 - cRect.top;
+      const ty2 = rRect.top + rRect.height/2 - cRect.top;
+      const cx = tx + 30;
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', `M${tx-8},${ty1} C${cx},${ty1} ${cx},${ty2} ${tx-8},${ty2}`);
+      path.setAttribute('class', 'join-line join-line-anim');
+      svg.appendChild(path);
+      continue;
+    }
+
+    // Determine which element is visually on the left vs right
+    const lCenter = lRect.left + lRect.width / 2;
+    const rCenter = rRect.left + rRect.width / 2;
+    let x1, y1, x2, y2;
+    if (lCenter <= rCenter) {
+      x1 = lRect.right - cRect.left;
+      y1 = lRect.top + lRect.height/2 - cRect.top;
+      x2 = rRect.left - cRect.left;
+      y2 = rRect.top + rRect.height/2 - cRect.top;
+    } else {
+      x1 = rRect.right - cRect.left;
+      y1 = rRect.top + rRect.height/2 - cRect.top;
+      x2 = lRect.left - cRect.left;
+      y2 = lRect.top + lRect.height/2 - cRect.top;
+    }
+
+    const midX = (x1 + x2) / 2;
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', `M${x1},${y1} C${midX},${y1} ${midX},${y2} ${x2},${y2}`);
+    path.setAttribute('class', 'join-line join-line-anim');
+    svg.appendChild(path);
+
+    // Dots at endpoints
+    for (const [x, y] of [[x1, y1], [x2, y2]]) {
+      const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      dot.setAttribute('cx', x); dot.setAttribute('cy', y);
+      dot.setAttribute('class', 'join-dot');
+      dot.setAttribute('r', '4');
+      svg.appendChild(dot);
+    }
+  }
+}
+
+// ============================================================
+// EXECUTION FLOW STEPS
+// ============================================================
+const FLOW_STEPS = [
+  { id: 'from', label: 'FROM', cls: 's-from', desc: 'Určuje zdrojovou tabulku (odkud bereme data)', regex: /\bFROM\b/i },
+  { id: 'join', label: 'JOIN', cls: 's-join', desc: 'Spojí dvě tabulky dohromady podle společného sloupce', regex: /\bJOIN\b/i },
+  { id: 'where', label: 'WHERE', cls: 's-where', desc: 'Filtruje řádky — zobrazí jen ty, co splňují podmínku', regex: /\bWHERE\b/i },
+  { id: 'group', label: 'GROUP BY', cls: 's-group', desc: 'Seskupí řádky podle hodnot — umožní agregaci (COUNT, SUM…)', regex: /\bGROUP\s+BY\b/i },
+  { id: 'having', label: 'HAVING', cls: 's-having', desc: 'Filtruje skupiny — funguje jako WHERE, ale až po seskupení', regex: /\bHAVING\b/i },
+  { id: 'select', label: 'SELECT', cls: 's-select', desc: 'Vybere sloupce, které se zobrazí ve výsledku', regex: /\bSELECT\b/i },
+  { id: 'order', label: 'ORDER BY', cls: 's-order', desc: 'Seřadí výsledné řádky (ASC = vzestupně, DESC = sestupně)', regex: /\bORDER\s+BY\b/i },
+];
+
+function updateFlow(sql) {
+  const bar = document.getElementById('flowBar');
+  bar.innerHTML = '<span class="flow-label">Pořadí vykonání:</span>';
+  let first = true;
+  for (const step of FLOW_STEPS) {
+    const active = step.regex.test(sql);
+    if (!active) continue;
+    if (!first) { const arrow = document.createElement('span'); arrow.className = 'flow-arrow'; arrow.textContent = '→'; bar.appendChild(arrow); }
+    first = false;
+    const el = document.createElement('span');
+    el.className = `flow-step ${step.cls} active`;
+    el.textContent = step.label;
+    el.onclick = (e) => { e.stopPropagation(); el.classList.toggle('show-tip'); };
+    const tip = document.createElement('div');
+    tip.className = 'flow-tooltip';
+    tip.textContent = step.desc;
+    el.appendChild(tip);
+    bar.appendChild(el);
+  }
+}
+
+// Close tooltips on outside click
+document.addEventListener('click', () => { document.querySelectorAll('.flow-step').forEach(s => s.classList.remove('show-tip')); });
+
+// ============================================================
+// EDITOR
+// ============================================================
+const textarea = document.getElementById('editorTextarea');
+const highlight = document.getElementById('editorHighlight');
+const lineNumbers = document.getElementById('lineNumbers');
+
+function updateEditor() {
+  const sql = textarea.value;
+  highlight.innerHTML = highlightSQL(sql) + '\n';
+  // Line numbers
+  const lines = sql.split('\n').length;
+  let ln = '';
+  for (let i = 1; i <= lines; i++) ln += i + '\n';
+  lineNumbers.textContent = ln;
+  // Pipeline (always) + data flow (skip during animation)
+  updatePipeline(sql);
+  if (!isAnimating) updateDataFlow(sql);
+}
+
+textarea.addEventListener('input', () => { stopAutoplay(); timelineSteps = []; updateEditor(); });
+textarea.addEventListener('scroll', () => {
+  highlight.scrollTop = textarea.scrollTop;
+  highlight.scrollLeft = textarea.scrollLeft;
+  lineNumbers.style.transform = `translateY(-${textarea.scrollTop}px)`;
+});
+
+// Animation state
+let isAnimating = false, skipAnimation = false, animStartTime = 0;
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+document.addEventListener('keydown', (e) => {
+  if (isAnimating && (Date.now() - animStartTime > 200) && !['Control','Shift','Alt','Meta'].includes(e.key)) skipAnimation = true;
+});
+document.addEventListener('click', () => { if (isAnimating && (Date.now() - animStartTime > 200)) skipAnimation = true; });
+
+textarea.addEventListener('keydown', (e) => {
+  if (isAnimating) { e.preventDefault(); return; }
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const s = textarea.selectionStart, end = textarea.selectionEnd;
+    textarea.value = textarea.value.substring(0, s) + '  ' + textarea.value.substring(end);
+    textarea.selectionStart = textarea.selectionEnd = s + 2;
+    updateEditor();
+  }
+  if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); executeQuery(); }
+});
+
+// ============================================================
+// QUERY EXECUTION
+// ============================================================
+async function executeQuery() {
+  const sql = textarea.value.trim();
+  if (!sql) return;
+  if (isAnimating) { skipAnimation = true; return; }
+  const wrap = document.getElementById('resultsWrap');
+  const status = document.getElementById('resultsStatus');
+  wrap.innerHTML = '<div class="results-empty" style="color:var(--text3)">Vykonávám dotaz…</div>';
+  status.innerHTML = '';
+
+  // Typing animation
+  isAnimating = true; skipAnimation = false; animStartTime = Date.now();
+  stopAutoplay(); timelineSteps = [];
+  textarea.value = ''; updateEditor();
+  textarea.readOnly = true; textarea.style.caretColor = 'transparent';
+  for (let i = 0; i < sql.length; i++) {
+    if (skipAnimation) break;
+    textarea.value = sql.substring(0, i + 1);
+    updateEditor();
+    await sleep(/\s/.test(sql[i]) ? 8 : 18);
+  }
+  textarea.value = sql; textarea.readOnly = false; textarea.style.caretColor = '';
+  isAnimating = false; skipAnimation = false;
+  updateEditor();
+
+  // Execute
+  const t0 = performance.now();
+  try {
+    const ast = parseSQL(sql);
+    const result = executeAST(ast);
+    const ms = Math.round(performance.now() - t0);
+    if (result.rows.length === 0) { wrap.innerHTML = '<div class="results-empty">Dotaz vrátil 0 řádků</div>'; status.innerHTML = `<span>0 řádků</span><span>${result.columns.length} sl.</span><span>${ms} ms</span>`; return; }
+    let html = '<table class="results-table"><thead><tr>';
+    for (const c of result.columns) html += `<th>${escapeHTML(c)}</th>`;
+    html += '</tr></thead><tbody>';
+    for (let i = 0; i < result.rows.length; i++) {
+      const row = result.rows[i];
+      html += `<tr class="row-animate" style="animation-delay:${i*25}ms">`;
+      for (const c of result.columns) {
+        const v = row[c];
+        if (v === null || v === undefined) html += '<td class="cell-null">NULL</td>';
+        else if (typeof v === 'number') html += `<td class="cell-number">${v}</td>`;
+        else html += `<td class="cell-string">${escapeHTML(String(v))}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+    status.innerHTML = `<span>${result.rows.length} řádků</span><span>${result.columns.length} sl.</span><span>${ms} ms</span>`;
+  } catch (err) {
+    const ms = Math.round(performance.now() - t0);
+    wrap.innerHTML = `<div class="results-error">Chyba: ${escapeHTML(err.message)}</div>`;
+    status.innerHTML = `<span style="color:var(--red)">Chyba</span><span>${ms} ms</span>`;
+  }
+}
+
+function executeInstant(sql) {
+  if (isAnimating) { skipAnimation = true; }
+  stopAutoplay(); timelineSteps = [];
+  textarea.value = sql;
+  updateEditor(); // pipeline + data flow (sets timelineSteps, slider to max)
+
+  // Execute and show results
+  const wrap = document.getElementById('resultsWrap');
+  const status = document.getElementById('resultsStatus');
+  const t0 = performance.now();
+  try {
+    const ast = parseSQL(sql);
+    const result = executeAST(ast);
+    const ms = Math.round(performance.now() - t0);
+    if (result.rows.length === 0) { wrap.innerHTML = '<div class="results-empty">Dotaz vrátil 0 řádků</div>'; status.innerHTML = `<span>0 řádků</span><span>${result.columns.length} sl.</span><span>${ms} ms</span>`; return; }
+    let html = '<table class="results-table"><thead><tr>';
+    for (const c of result.columns) html += `<th>${escapeHTML(c)}</th>`;
+    html += '</tr></thead><tbody>';
+    for (let i = 0; i < result.rows.length; i++) {
+      const row = result.rows[i];
+      html += '<tr>';
+      for (const c of result.columns) {
+        const v = row[c];
+        if (v === null || v === undefined) html += '<td class="cell-null">NULL</td>';
+        else if (typeof v === 'number') html += `<td class="cell-number">${v}</td>`;
+        else html += `<td class="cell-string">${escapeHTML(String(v))}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+    status.innerHTML = `<span>${result.rows.length} řádků</span><span>${result.columns.length} sl.</span><span>${ms} ms</span>`;
+  } catch (err) {
+    wrap.innerHTML = `<div class="results-error">Chyba: ${escapeHTML(err.message)}</div>`;
+    status.innerHTML = `<span style="color:var(--red)">Chyba</span>`;
+  }
+}
+
+// ============================================================
+// EXAMPLES
+// ============================================================
+const EXAMPLES = [
+  { name: 'Základní SELECT', sql: "SELECT jmeno, fce\nFROM zam" },
+  { name: 'WHERE IS NOT NULL', sql: "SELECT jmeno, fce, titul\nFROM zam\nWHERE titul IS NOT NULL" },
+  { name: 'WHERE LIKE', sql: "SELECT jmeno, fce\nFROM zam\nWHERE jmeno LIKE '%OVA'" },
+  { name: 'Concatenace', sql: "SELECT 'Pan ' || jmeno || ' pracuje v odd. č. ' || cis_odd AS info\nFROM zam" },
+  { name: 'JOIN ON', sql: "SELECT z.jmeno, z.fce, o.nazev\nFROM zam z\nJOIN oddel o ON z.cis_odd = o.cis_odd" },
+  { name: 'JOIN USING', sql: "SELECT z.jmeno, u.popis, u.datum\nFROM zam z\nJOIN ukoly u USING (os_cis)" },
+  { name: 'GROUP BY + COUNT', sql: "SELECT cis_odd, COUNT(*) AS pocet\nFROM zam\nWHERE titul IS NULL\nGROUP BY cis_odd" },
+  { name: 'HAVING', sql: "SELECT os_cis, COUNT(*) AS pocet_ukolu\nFROM ukoly\nGROUP BY os_cis\nHAVING COUNT(*) >= 2" },
+  { name: 'ORDER BY', sql: "SELECT jmeno, cis_odd, plat\nFROM zam\nORDER BY cis_odd ASC, plat DESC" },
+  { name: 'Self JOIN', sql: "SELECT z.jmeno AS zamestnanec, n.jmeno AS nadrizeny\nFROM zam z\nJOIN zam n ON z.nadr = n.os_cis" },
+  { name: 'Agregace', sql: "SELECT cis_odd,\n  AVG(plat) AS prumerny_plat,\n  MAX(plat) AS max_plat,\n  MIN(plat) AS min_plat\nFROM zam\nGROUP BY cis_odd" },
+  { name: 'Vnořený dotaz', sql: "SELECT jmeno, plat\nFROM zam\nWHERE plat > (SELECT AVG(plat) FROM zam)" },
+];
+
+function initExamples() {
+  const menu = document.getElementById('examplesMenu');
+  EXAMPLES.forEach((ex, i) => {
+    const item = document.createElement('div');
+    item.className = 'example-item';
+    item.innerHTML = `<span class="example-num">${i+1}.</span><div class="example-info"><div class="example-name">${escapeHTML(ex.name)}</div><div class="example-sql">${escapeHTML(ex.sql.replace(/\n/g,' '))}</div></div>`;
+    item.onclick = () => { textarea.value = ex.sql; toggleExamples(); executeInstant(ex.sql); };
+    menu.appendChild(item);
+  });
+}
+function toggleExamples() { document.getElementById('examplesMenu').classList.toggle('show'); }
+document.addEventListener('click', (e) => { if (!e.target.closest('.examples-dropdown')) document.getElementById('examplesMenu').classList.remove('show'); });
+
+// ============================================================
+// RESIZE HANDLES (generic)
+// ============================================================
+function initResize(handleEl, topEl, bottomEl, minTop, minBottom) {
+  let active = false;
+  handleEl.addEventListener('mousedown', () => { active = true; handleEl.classList.add('dragging'); document.body.style.cursor = 'row-resize'; document.body.style.userSelect = 'none'; });
+  document.addEventListener('mousemove', (e) => {
+    if (!active) return;
+    const appRect = document.querySelector('.app').getBoundingClientRect();
+    const topOffset = topEl.getBoundingClientRect().top - appRect.top;
+    const bottomEnd = bottomEl.getBoundingClientRect().bottom - appRect.top;
+    const y = e.clientY - appRect.top;
+    const newTopH = Math.max(minTop, y - topOffset - 2);
+    const newBottomH = Math.max(minBottom, bottomEnd - y - 2);
+    topEl.style.flex = 'none'; topEl.style.height = newTopH + 'px';
+    bottomEl.style.flex = 'none'; bottomEl.style.height = newBottomH + 'px';
+    updateEditor();
+    drawJoinLines(window.__lastLinks || []);
+  });
+  document.addEventListener('mouseup', () => { if (active) { active = false; handleEl.classList.remove('dragging'); document.body.style.cursor = ''; document.body.style.userSelect = ''; } });
+}
+initResize(document.getElementById('resizeEditorFlow'), document.getElementById('editorSection'), document.getElementById('dataflowSection'), 60, 80);
+initResize(document.getElementById('resizePipelineResults'), document.getElementById('pipelineSection'), document.getElementById('resultsSection'), 100, 80);
+
+// Column resize (horizontal)
+(function() {
+  const handle = document.getElementById('resizeColumns');
+  const left = document.getElementById('colLeft');
+  const right = document.getElementById('colRight');
+  let active = false;
+  handle.addEventListener('mousedown', () => { active = true; handle.classList.add('dragging'); document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none'; });
+  document.addEventListener('mousemove', (e) => {
+    if (!active) return;
+    const parent = left.parentElement.getBoundingClientRect();
+    const x = e.clientX - parent.left;
+    const newLeftW = Math.max(280, Math.min(x - 2, parent.width - 284));
+    left.style.width = newLeftW + 'px';
+    right.style.flex = '1';
+    updateEditor();
+    drawJoinLines(window.__lastLinks || []);
+  });
+  document.addEventListener('mouseup', () => { if (active) { active = false; handle.classList.remove('dragging'); document.body.style.cursor = ''; document.body.style.userSelect = ''; } });
+})();
+
+window.addEventListener('resize', () => { updateEditor(); drawJoinLines(window.__lastLinks || []); });
+
+// ============================================================
+// HELPERS FOR DATA FLOW
+// ============================================================
+function extractClauses(sql) {
+  const tokens = tokenize(sql);
+  const clauses = {};
+  const KW_ORDER = ['SELECT','FROM','JOIN','LEFT','RIGHT','FULL','INNER','CROSS','NATURAL','WHERE','GROUP','HAVING','ORDER'];
+  let depth = 0;
+  const boundaries = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t.type === 'paren_open') depth++;
+    if (t.type === 'paren_close') depth--;
+    if (depth === 0 && t.type === 'word' && KW_ORDER.includes(t.value.toUpperCase())) {
+      const kw = t.value.toUpperCase();
+      // JOIN variants: combine LEFT/RIGHT/FULL/INNER/CROSS/NATURAL with JOIN
+      if (['LEFT','RIGHT','FULL','INNER','CROSS','NATURAL'].includes(kw)) {
+        boundaries.push({ kw: 'JOIN', pos: t.pos });
+      } else if (kw === 'GROUP' || kw === 'ORDER') {
+        // GROUP BY / ORDER BY — skip the BY
+        boundaries.push({ kw: kw + ' BY', pos: t.pos });
+      } else {
+        boundaries.push({ kw, pos: t.pos });
+      }
+    }
+  }
+  // Extract text between boundaries
+  for (let i = 0; i < boundaries.length; i++) {
+    const start = boundaries[i].pos;
+    const end = i + 1 < boundaries.length ? boundaries[i + 1].pos : sql.length;
+    const text = sql.slice(start, end).trim().replace(/\s+/g, ' ');
+    const kw = boundaries[i].kw;
+    if (clauses[kw]) {
+      if (!Array.isArray(clauses[kw])) clauses[kw] = [clauses[kw]];
+      clauses[kw].push(text);
+    } else {
+      clauses[kw] = text;
+    }
+  }
+  return clauses;
+}
+function collectColumns(expr) {
+  const cols = new Set();
+  (function walk(e) {
+    if (!e) return;
+    if (e.type === 'column') { cols.add(e.name); return; }
+    if (e.type === 'binary') { walk(e.left); walk(e.right); return; }
+    if (e.type === 'unary') { walk(e.operand); return; }
+    if (e.type === 'agg') { walk(e.arg); return; }
+    if (e.type === 'is_null') { walk(e.expr); return; }
+    if (e.type === 'between') { walk(e.expr); walk(e.low); walk(e.high); return; }
+    if (e.type === 'like') { walk(e.expr); return; }
+    if (e.type === 'in') { walk(e.expr); if (e.values) e.values.forEach(walk); return; }
+    if (e.type === 'star') return;
+  })(expr);
+  return cols;
+}
+
+// ============================================================
+// STEPPED EXECUTOR (before/after for each SQL clause)
+// ============================================================
+function executeASTStepped(sql) {
+  const steps = [];
+  let query;
+  try { query = parseSQL(sql); } catch(e) { return steps; }
+
+  let rows = [];
+  const aliasMap = {};
+  const MAX_PREVIEW = 2;
+
+  // Helper: get display columns from rows (skip internal keys)
+  function displayCols(rs) {
+    if (rs.length === 0) return [];
+    const cols = [];
+    for (const k of Object.keys(rs[0])) { if (k !== '__group__' && !k.includes('.')) cols.push(k); }
+    return cols;
+  }
+  function snapshot(rs) { const c = displayCols(rs); return { columns: c, rows: rs.slice(0, MAX_PREVIEW), total: rs.length }; }
+  const clauses = extractClauses(sql);
+  let joinIdx = 0;
+
+  // Helper: build colHL entries for a set of columns with a CSS class
+  function buildColHL(activeCols, cssClass) {
+    const m = new Map();
+    for (const col of activeCols) {
+      // Find which tables have this column
+      for (const [tblName, tbl] of Object.entries(DB)) {
+        if (tbl.columns.includes(col)) {
+          const key = tblName + '\t' + col;
+          if (!m.has(key)) m.set(key, new Set());
+          m.get(key).add(cssClass);
+        }
+      }
+    }
+    return m;
+  }
+  // Helper: build colHL from expression with table-awareness via aliasMap
+  function buildColHLFromExpr(expr, cssClass) {
+    const m = new Map();
+    const cols = [];
+    (function walk(e) {
+      if (!e) return;
+      if (e.type === 'column') { cols.push({ table: e.table, name: e.name }); return; }
+      if (e.type === 'binary') { walk(e.left); walk(e.right); return; }
+      if (e.type === 'unary') { walk(e.operand); return; }
+      if (e.type === 'agg') { walk(e.arg); return; }
+      if (e.type === 'is_null') { walk(e.expr); return; }
+      if (e.type === 'between') { walk(e.expr); walk(e.low); walk(e.high); return; }
+      if (e.type === 'like') { walk(e.expr); return; }
+      if (e.type === 'in') { walk(e.expr); if (e.values) e.values.forEach(walk); return; }
+    })(expr);
+    for (const c of cols) {
+      if (c.table) {
+        const realTbl = aliasMap[c.table] || c.table;
+        const key = realTbl + '\t' + c.name;
+        if (!m.has(key)) m.set(key, new Set());
+        m.get(key).add(cssClass);
+      } else {
+        for (const [tblName, tbl] of Object.entries(DB)) {
+          if (tbl.columns.includes(c.name)) {
+            const key = tblName + '\t' + c.name;
+            if (!m.has(key)) m.set(key, new Set());
+            m.get(key).add(cssClass);
+          }
+        }
+      }
+    }
+    return m;
+  }
+
+  // FROM
+  if (query.from.length === 0) { rows = [{}]; }
+  else if (query.from.length === 1) {
+    const src = query.from[0];
+    if (src.type === 'subquery') { const sr = executeAST(src.query); rows = sr.rows.map(r => { const row = {}; for (const [k,v] of Object.entries(r)) { if (src.alias) row[src.alias.toUpperCase()+'.'+k] = v; row[k] = v; } return row; }); if (src.alias) aliasMap[src.alias.toUpperCase()] = '__subquery__'; }
+    else { const tbl = getTable(src.name); rows = tbl.rows.map(r => { const row = {}; for (const col of tbl.columns) { row[col]=r[col]; row[src.name+'.'+col]=r[col]; if(src.alias) row[src.alias+'.'+col]=r[col]; } return row; }); aliasMap[src.name]=src.name; if(src.alias) aliasMap[src.alias]=src.name; }
+  } else {
+    rows = [{}];
+    for (const src of query.from) { const tbl=getTable(src.name); const nr=[]; for(const ex of rows){for(const r of tbl.rows){const row={...ex};for(const col of tbl.columns){row[col]=r[col];row[src.name+'.'+col]=r[col];if(src.alias)row[src.alias+'.'+col]=r[col];}nr.push(row);}} rows=nr; aliasMap[src.name]=src.name; if(src.alias) aliasMap[src.alias]=src.name; }
+  }
+  if (query.from.length > 0) {
+    const fromTables = new Set(query.from.filter(f => f.type !== 'subquery').map(f => f.name.toUpperCase()));
+    steps.push({ step: 'from', label: clauses['FROM'] || 'FROM', before: null, after: snapshot(rows), activeCols: new Set(),
+      hlInfo: { tablesFrom: fromTables, tablesJoin: new Set(), colHL: new Map(), joinLinks: [] } });
+  }
+
+  // JOINs
+  for (const join of query.joins) {
+    const beforeRows = rows;
+    const tbl=getTable(join.table); const ta=join.alias||join.table; aliasMap[join.table]=join.table; if(join.alias)aliasMap[join.alias]=join.table;
+    function storeJC(c,rr,v){for(const col of tbl.columns){c[ta+'.'+col]=v===null?null:rr[col];if(!join.alias)c[join.table+'.'+col]=v===null?null:rr[col];if(!(col in c))c[col]=v===null?null:rr[col];}}
+    if(join.using){const nr=[];for(const lr of rows){let m=false;for(const rr of tbl.rows){let ok=true;for(const col of join.using){if(!valuesEqual(lr[col],rr[col])){ok=false;break;}}if(ok){const c={...lr};storeJC(c,rr,1);nr.push(c);m=true;}}if(!m&&(join.type==='LEFT'||join.type==='FULL')){const c={...lr};storeJC(c,{},null);nr.push(c);}}rows=nr;}
+    else if(join.on){const nr=[];for(const lr of rows){let m=false;for(const rr of tbl.rows){const c={...lr};storeJC(c,rr,1);if(evalExpr(join.on,c)){nr.push(c);m=true;}}if(!m&&(join.type==='LEFT'||join.type==='FULL')){const c={...lr};storeJC(c,{},null);nr.push(c);}}rows=nr;}
+    else{const nr=[];for(const lr of rows){for(const rr of tbl.rows){const c={...lr};storeJC(c,rr,1);nr.push(c);}}rows=nr;}
+    const jlabel = (join.alias ? join.table.toLowerCase() + ' ' + join.alias.toLowerCase() : join.table.toLowerCase());
+    const joinActive = join.using ? new Set(join.using.map(c => c.toUpperCase())) : join.on ? collectColumns(join.on) : new Set();
+    const joinClause = Array.isArray(clauses['JOIN']) ? clauses['JOIN'][joinIdx] : clauses['JOIN'];
+    joinIdx++;
+    // Build join highlight info
+    const jColHL = join.on ? buildColHLFromExpr(join.on, 'hl-join-col') : new Map();
+    const jLinks = [];
+    if (join.using) {
+      const prevTables = [...(steps.length > 0 && steps[0].hlInfo ? steps[0].hlInfo.tablesFrom : [])];
+      for (const col of join.using) {
+        const cu = col.toUpperCase();
+        if (prevTables.length > 0) jLinks.push({ leftTable: prevTables[0], leftCol: cu, rightTable: join.table.toUpperCase(), rightCol: cu });
+        const k1 = prevTables[0] + '\t' + cu, k2 = join.table.toUpperCase() + '\t' + cu;
+        if (!jColHL.has(k1)) jColHL.set(k1, new Set()); jColHL.get(k1).add('hl-join-col');
+        if (!jColHL.has(k2)) jColHL.set(k2, new Set()); jColHL.get(k2).add('hl-join-col');
+      }
+    } else if (join.on) {
+      // Extract join links from ON: look for t1.col = t2.col patterns
+      (function extractLinks(e) {
+        if (!e) return;
+        if (e.type === 'binary' && e.op === '=' && e.left.type === 'column' && e.right.type === 'column' && e.left.table && e.right.table) {
+          jLinks.push({ leftTable: aliasMap[e.left.table] || e.left.table, leftCol: e.left.name, rightTable: aliasMap[e.right.table] || e.right.table, rightCol: e.right.name });
+        }
+        if (e.type === 'binary') { extractLinks(e.left); extractLinks(e.right); }
+      })(join.on);
+    }
+    steps.push({ step: 'join', label: joinClause || 'JOIN ' + jlabel, before: snapshot(beforeRows), after: snapshot(rows), newCols: tbl.columns, activeCols: joinActive,
+      hlInfo: { tablesFrom: new Set(), tablesJoin: new Set([join.table.toUpperCase()]), colHL: jColHL, joinLinks: jLinks } });
+  }
+
+  // WHERE
+  if (query.where) {
+    const beforeRows = rows;
+    const passed = [], failed = [];
+    for (const r of rows) { if (evalExpr(query.where, r) === true) passed.push(r); else failed.push(r); }
+    rows = passed;
+    // Show mix: some passed + some failed
+    const beforeMix = [];
+    const showFail = failed.slice(0, 2);
+    const showPass = passed.slice(0, 2);
+    for (const r of showPass) beforeMix.push({ row: r, pass: true });
+    for (const r of showFail) beforeMix.push({ row: r, pass: false });
+    steps.push({ step: 'where', label: clauses['WHERE'] || 'WHERE', before: { columns: displayCols(beforeRows), rows: beforeMix, total: beforeRows.length }, after: snapshot(rows), filter: true, activeCols: collectColumns(query.where),
+      hlInfo: { tablesFrom: new Set(), tablesJoin: new Set(), colHL: buildColHLFromExpr(query.where, 'hl-where'), joinLinks: [] } });
+  }
+
+  // GROUP BY
+  if (query.groupBy.length > 0) {
+    const beforeRows = rows;
+    const g = new Map();
+    for (const r of rows) { const k = query.groupBy.map(e => { const v = evalExpr(e, r); return v === null ? '__NULL__' : String(v); }).join('|||'); if (!g.has(k)) g.set(k, []); g.get(k).push(r); }
+    const gr = []; for (const [, grs] of g) gr.push({ __group__: grs, ...grs[0] }); rows = gr;
+    const groupActive = new Set(); for (const e of query.groupBy) collectColumns(e).forEach(c => groupActive.add(c));
+    const groupColHL = new Map(); for (const e of query.groupBy) { const m = buildColHLFromExpr(e, 'hl-group'); for (const [k, v] of m) { if (!groupColHL.has(k)) groupColHL.set(k, new Set()); v.forEach(c => groupColHL.get(k).add(c)); } }
+    steps.push({ step: 'group', label: clauses['GROUP BY'] || 'GROUP BY', before: snapshot(beforeRows), after: { columns: displayCols(rows), rows: rows.slice(0, MAX_PREVIEW), total: rows.length, isGrouped: true, groups: [...g.values()].slice(0, MAX_PREVIEW).map(g => g.length) }, activeCols: groupActive,
+      hlInfo: { tablesFrom: new Set(), tablesJoin: new Set(), colHL: groupColHL, joinLinks: [] } });
+  } else if (hasAgg(query.columns) || query.having) {
+    rows = [{ __group__: rows, ...(rows[0] || {}) }];
+  }
+
+  // HAVING
+  if (query.having) {
+    const beforeRows = rows;
+    const passed = [], failed = [];
+    for (const r of rows) { if (evalExpr(query.having, r) === true) passed.push(r); else failed.push(r); }
+    rows = passed;
+    const beforeMix = [];
+    for (const r of passed.slice(0, 2)) beforeMix.push({ row: r, pass: true });
+    for (const r of failed.slice(0, 2)) beforeMix.push({ row: r, pass: false });
+    steps.push({ step: 'having', label: clauses['HAVING'] || 'HAVING', before: { columns: displayCols(beforeRows), rows: beforeMix, total: beforeRows.length }, after: snapshot(rows), filter: true, activeCols: collectColumns(query.having),
+      hlInfo: { tablesFrom: new Set(), tablesJoin: new Set(), colHL: buildColHLFromExpr(query.having, 'hl-having'), joinLinks: [] } });
+  }
+
+  // SELECT
+  const rc = [], rr = [];
+  for (const col of query.columns) {
+    if (col.type === 'star') { const ts = [...query.from, ...query.joins.map(j => ({ name: j.table, alias: j.alias }))]; for (const t of ts) { if (t.type === 'subquery') { if (rows.length > 0) for (const k of Object.keys(rows[0])) { if (k === '__group__') continue; if (!k.includes('.')) rc.push(k); } } else { const tb = getTable(t.name); for (const c of tb.columns) rc.push(c); } } }
+    else { rc.push((col.alias || exprName(col.expr)).toUpperCase()); }
+  }
+  for (const row of rows) {
+    const res = {}; let ci = 0;
+    for (const col of query.columns) {
+      if (col.type === 'star') { const ts = [...query.from, ...query.joins.map(j => ({ name: j.table, alias: j.alias }))]; for (const t of ts) { if (t.type === 'subquery') { for (const k of Object.keys(row)) { if (k === '__group__') continue; if (!k.includes('.')) { res[k] = row[k]; ci++; } } } else { const tb = getTable(t.name); for (const c of tb.columns) { const al = t.alias || t.name; res[rc[ci]] = row[al + '.' + c] !== undefined ? row[al + '.' + c] : row[c]; ci++; } } } }
+      else { res[rc[ci]] = evalExpr(col.expr, row); ci++; }
+    }
+    rr.push(res);
+  }
+  const beforeSelect = snapshot(rows);
+  let fr = rr;
+  if (query.distinct) { const seen = new Set(); fr = []; for (const r of rr) { const k = rc.map(c => r[c] === null ? '__NULL__' : String(r[c])).join('|||'); if (!seen.has(k)) { seen.add(k); fr.push(r); } } }
+  const selectActive = new Set(); for (const c of query.columns) { if (c.expr) collectColumns(c.expr).forEach(x => selectActive.add(x)); }
+  const selectColHL = new Map(); for (const c of query.columns) { if (c.expr) { const m = buildColHLFromExpr(c.expr, 'hl-select'); for (const [k, v] of m) { if (!selectColHL.has(k)) selectColHL.set(k, new Set()); v.forEach(x => selectColHL.get(k).add(x)); } } }
+  steps.push({ step: 'select', label: clauses['SELECT'] || 'SELECT', before: beforeSelect, after: { columns: rc, rows: fr.slice(0, MAX_PREVIEW), total: fr.length }, activeCols: selectActive,
+    hlInfo: { tablesFrom: new Set(), tablesJoin: new Set(), colHL: selectColHL, joinLinks: [] } });
+
+  // ORDER BY
+  if (query.orderBy.length > 0) {
+    const beforeOrder = fr.slice(0, MAX_PREVIEW);
+    fr.sort((a, b) => { for (const ob of query.orderBy) { const va = evalExprR(ob.expr, a, rc), vb = evalExprR(ob.expr, b, rc), c = cmpVals(va, vb); if (c !== 0) return ob.dir === 'DESC' ? -c : c; } return 0; });
+    const orderActive = new Set(); for (const o of query.orderBy) collectColumns(o.expr).forEach(c => orderActive.add(c));
+    const orderColHL = new Map(); for (const o of query.orderBy) { const m = buildColHLFromExpr(o.expr, 'hl-order'); for (const [k, v] of m) { if (!orderColHL.has(k)) orderColHL.set(k, new Set()); v.forEach(x => orderColHL.get(k).add(x)); } }
+    steps.push({ step: 'order', label: clauses['ORDER BY'] || 'ORDER BY', before: { columns: rc, rows: beforeOrder, total: fr.length }, after: { columns: rc, rows: fr.slice(0, MAX_PREVIEW), total: fr.length }, activeCols: orderActive,
+      hlInfo: { tablesFrom: new Set(), tablesJoin: new Set(), colHL: orderColHL, joinLinks: [] } });
+  }
+
+  return steps;
+}
+
+// ============================================================
+// DATA FLOW RENDERER
+// ============================================================
+// ============================================================
+// TIMELINE
+// ============================================================
+const timelineSlider = document.getElementById('timelineSlider');
+const timelineLabel = document.getElementById('timelineLabel');
+const timelineControls = document.getElementById('timelineControls');
+const tlPrev = document.getElementById('tlPrev');
+const tlPlay = document.getElementById('tlPlay');
+const tlNext = document.getElementById('tlNext');
+var playInterval = null;
+
+function stopAutoplay() {
+  if (playInterval) { clearInterval(playInterval); playInterval = null; }
+  tlPlay.textContent = '▶'; tlPlay.classList.remove('playing');
+}
+
+function startTimelineAutoplay() {
+  stopAutoplay();
+  timelinePos = 0; timelineSlider.value = 0; renderTimeline(0);
+  tlPlay.textContent = '⏸'; tlPlay.classList.add('playing');
+  playInterval = setInterval(() => {
+    if (timelinePos >= timelineSteps.length) { stopAutoplay(); return; }
+    timelinePos++;
+    timelineSlider.value = timelinePos;
+    renderTimeline(timelinePos);
+  }, 1200);
+}
+
+function hideTimeline() {
+  timelineControls.style.display = 'none'; timelineLabel.textContent = '';
+}
+
+function updateDataFlow(sql) {
+  const container = document.getElementById('dataFlow');
+  if (!sql || !/\bFROM\b/i.test(sql)) {
+    container.innerHTML = ''; timelineSteps = []; stopAutoplay(); hideTimeline();
+    return;
+  }
+
+  let steps;
+  try { steps = executeASTStepped(sql); } catch(e) { container.innerHTML = ''; timelineSteps = []; stopAutoplay(); hideTimeline(); return; }
+  if (steps.length === 0) { container.innerHTML = ''; timelineSteps = []; stopAutoplay(); hideTimeline(); return; }
+
+  timelineSteps = steps;
+  timelineSlider.max = steps.length;
+  timelineSlider.value = steps.length;
+  timelineControls.style.display = '';
+  timelinePos = steps.length;
+  renderTimeline(timelinePos);
+}
+
+function renderTimeline(pos) {
+  const container = document.getElementById('dataFlow');
+  const steps = timelineSteps;
+  if (steps.length === 0) { container.innerHTML = ''; return; }
+
+  // Update label
+  if (pos === 0) {
+    timelineLabel.textContent = 'Krok 0/' + steps.length;
+  } else {
+    const s = steps[pos - 1];
+    timelineLabel.textContent = 'Krok ' + pos + '/' + steps.length;
+  }
+
+  // Render data flow cards up to pos
+  let html = '';
+  for (let si = 0; si < pos; si++) {
+    const s = steps[si];
+    if (si > 0) html += '<div class="df-arrow">↓</div>';
+    html += `<div class="df-card df-${s.step}">`;
+    html += `<div class="df-card-header"><span class="df-step-num">${si + 1}</span><span>${escapeHTML(s.label)}</span>`;
+    if (s.before && s.after) html += `<span class="df-count">${s.before.total || '?'} → ${s.after.total} řádků</span>`;
+    else if (s.after) html += `<span class="df-count">${s.after.total} řádků</span>`;
+    html += '</div>';
+
+    const ac = s.activeCols || new Set();
+    const afterAc = (s.step === 'select') ? new Set() : ac;
+
+    if (s.filter && s.before && s.after) {
+      html += '<div class="df-card-body">';
+      html += '<div class="df-half"><div class="df-half-label">Vstup (' + (s.before.total) + ')</div>';
+      html += renderMixTable(s.before.columns, s.before.rows, ac);
+      html += '</div>';
+      html += '<div class="df-half"><div class="df-half-label">Výstup (' + s.after.total + ')</div>';
+      html += renderMiniTable(s.after.columns, s.after.rows, s.after.total, null, afterAc);
+      html += '</div></div>';
+    } else if (s.before && s.after) {
+      html += '<div class="df-card-body">';
+      html += '<div class="df-half"><div class="df-half-label">Před (' + s.before.total + ')</div>';
+      html += renderMiniTable(s.before.columns, s.before.rows, s.before.total, null, ac);
+      html += '</div>';
+      html += '<div class="df-half"><div class="df-half-label">Po (' + s.after.total + ')</div>';
+      html += renderMiniTable(s.after.columns, s.after.rows, s.after.total, s.newCols, afterAc);
+      html += '</div></div>';
+    } else if (s.after) {
+      html += '<div class="df-card-body df-single">';
+      html += renderMiniTable(s.after.columns, s.after.rows, s.after.total, null, afterAc);
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  container.innerHTML = html;
+
+  // Update pipeline highlighting for current timeline position
+  updatePipelineForStep(pos);
+
+  // Update flow bar for current timeline position
+  updateFlowForStep(pos);
+}
+
+function updatePipelineForStep(pos) {
+  const steps = timelineSteps;
+  // Reset all highlights
+  document.querySelectorAll('.p-table').forEach(el => el.classList.remove('hl-from', 'hl-join'));
+  document.querySelectorAll('.p-col').forEach(el => el.classList.remove('hl-select', 'hl-where', 'hl-join-col', 'hl-group', 'hl-having', 'hl-order'));
+
+  // Accumulate highlights from steps 0..pos-1
+  const allTablesFrom = new Set(), allTablesJoin = new Set();
+  const allColHL = new Map();
+  const allJoinLinks = [];
+
+  for (let i = 0; i < pos && i < steps.length; i++) {
+    const hl = steps[i].hlInfo;
+    if (!hl) continue;
+    hl.tablesFrom.forEach(t => allTablesFrom.add(t));
+    hl.tablesJoin.forEach(t => allTablesJoin.add(t));
+    for (const [key, classes] of hl.colHL) {
+      if (!allColHL.has(key)) allColHL.set(key, new Set());
+      classes.forEach(c => allColHL.get(key).add(c));
+    }
+    for (const link of hl.joinLinks) allJoinLinks.push(link);
+  }
+
+  // Apply table highlights
+  document.querySelectorAll('.p-table').forEach(el => {
+    const n = el.dataset.table;
+    if (allTablesFrom.has(n)) el.classList.add('hl-from');
+    if (allTablesJoin.has(n)) el.classList.add('hl-join');
+  });
+
+  // Apply column highlights
+  document.querySelectorAll('.p-col').forEach(el => {
+    const col = el.dataset.col;
+    const table = el.closest('.p-table')?.dataset.table;
+    if (!table) return;
+    const key = table + '\t' + col;
+    const classes = allColHL.get(key);
+    if (classes) classes.forEach(c => el.classList.add(c));
+  });
+
+  // Draw join lines
+  drawJoinLines(allJoinLinks);
+}
+
+function updateFlowForStep(pos) {
+  const steps = timelineSteps;
+  const bar = document.getElementById('flowBar');
+  bar.innerHTML = '<span class="flow-label">Pořadí vykonání:</span>';
+  // Collect unique step types up to pos
+  const activeIds = [];
+  for (let i = 0; i < pos && i < steps.length; i++) {
+    const id = steps[i].step;
+    if (!activeIds.includes(id)) activeIds.push(id);
+  }
+  let first = true;
+  for (const step of FLOW_STEPS) {
+    if (!activeIds.includes(step.id)) continue;
+    if (!first) { const arrow = document.createElement('span'); arrow.className = 'flow-arrow'; arrow.textContent = '→'; bar.appendChild(arrow); }
+    first = false;
+    const el = document.createElement('span');
+    el.className = `flow-step ${step.cls} active`;
+    el.textContent = step.label;
+    el.onclick = (e) => { e.stopPropagation(); el.classList.toggle('show-tip'); };
+    const tip = document.createElement('div');
+    tip.className = 'flow-tooltip';
+    tip.textContent = step.desc;
+    el.appendChild(tip);
+    bar.appendChild(el);
+  }
+}
+
+// Slider event
+timelineSlider.addEventListener('input', () => {
+  stopAutoplay();
+  timelinePos = parseInt(timelineSlider.value);
+  renderTimeline(timelinePos);
+});
+
+// Prev / Next / Play buttons
+tlPrev.addEventListener('click', () => {
+  stopAutoplay();
+  if (timelinePos > 0) { timelinePos--; timelineSlider.value = timelinePos; renderTimeline(timelinePos); }
+});
+tlNext.addEventListener('click', () => {
+  stopAutoplay();
+  if (timelinePos < timelineSteps.length) { timelinePos++; timelineSlider.value = timelinePos; renderTimeline(timelinePos); }
+});
+tlPlay.addEventListener('click', () => {
+  if (playInterval) { stopAutoplay(); return; }
+  if (timelinePos >= timelineSteps.length) { timelinePos = 0; timelineSlider.value = 0; renderTimeline(0); }
+  tlPlay.textContent = '⏸'; tlPlay.classList.add('playing');
+  playInterval = setInterval(() => {
+    if (timelinePos >= timelineSteps.length) { stopAutoplay(); return; }
+    timelinePos++;
+    timelineSlider.value = timelinePos;
+    renderTimeline(timelinePos);
+  }, 1200);
+});
+
+// Scroll wheel on timeline controls = timeline step
+document.getElementById('timelineControls').addEventListener('wheel', (e) => {
+  if (timelineSteps.length === 0) return;
+  e.preventDefault();
+  stopAutoplay();
+  if (e.deltaY > 0 && timelinePos < timelineSteps.length) timelinePos++;
+  else if (e.deltaY < 0 && timelinePos > 0) timelinePos--;
+  timelineSlider.value = timelinePos;
+  renderTimeline(timelinePos);
+}, { passive: false });
+
+function filterCols(columns, activeCols, newCols) {
+  if (!activeCols || activeCols.size === 0) return columns;
+  const keep = new Set(activeCols);
+  if (newCols) for (const c of newCols) keep.add(c);
+  return columns.filter(c => keep.has(c));
+}
+
+function renderMiniTable(columns, rows, total, newCols, activeCols) {
+  const cols = filterCols(columns, activeCols, newCols);
+  if (!cols || cols.length === 0) return '';
+  const nc = new Set(newCols || []);
+  let h = '<table class="df-mini-table"><thead><tr>';
+  for (const c of cols) h += `<th${nc.has(c) ? ' class="df-new-col"' : ''}>${escapeHTML(c)}</th>`;
+  h += '</tr></thead><tbody>';
+  for (const r of rows) {
+    h += '<tr>';
+    for (const c of cols) { const v = r[c]; h += v === null || v === undefined ? '<td class="df-null">NULL</td>' : `<td>${escapeHTML(String(v))}</td>`; }
+    h += '</tr>';
+  }
+  if (total > rows.length) h += `<tr><td colspan="${cols.length}" class="df-more">… a dalších ${total - rows.length}</td></tr>`;
+  h += '</tbody></table>';
+  return h;
+}
+
+function renderMixTable(columns, mixRows, activeCols) {
+  const cols = filterCols(columns, activeCols);
+  if (!cols || cols.length === 0) return '';
+  let h = '<table class="df-mini-table"><thead><tr>';
+  for (const c of cols) h += `<th>${escapeHTML(c)}</th>`;
+  h += '<th></th></tr></thead><tbody>';
+  for (const m of mixRows) {
+    const r = m.row;
+    h += `<tr class="${m.pass ? 'df-pass' : 'df-fail'}">`;
+    for (const c of cols) { const v = r[c]; h += v === null || v === undefined ? '<td class="df-null">NULL</td>' : `<td>${escapeHTML(String(v))}</td>`; }
+    h += `<td>${m.pass ? '✓' : '✗'}</td></tr>`;
+  }
+  h += '</tbody></table>';
+  return h;
+}
+
+// ============================================================
+// INIT
+// ============================================================
+initPipeline();
+initExamples();
+executeInstant(EXAMPLES[4].sql); // JOIN ON example
+</script>
+</body>
+</html>
