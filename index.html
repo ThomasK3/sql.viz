@@ -296,7 +296,7 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-s
   background: var(--bg2); overflow: hidden;
 }
 .df-card-header {
-  display: flex; align-items: flex-start; gap: 8px; padding: 6px 12px;
+  display: flex; align-items: center; gap: 8px; padding: 6px 12px;
   font-size: 10px; font-weight: 600; border-bottom: 1px solid var(--border);
   font-family: 'JetBrains Mono', monospace; line-height: 1.4;
 }
@@ -336,6 +336,19 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-s
 .df-select .df-card-header { color: var(--blue); }
 .df-order .df-step-num { background: rgba(86,212,221,0.2); color: var(--cyan); }
 .df-order .df-card-header { color: var(--cyan); }
+.df-setop .df-step-num { background: rgba(210,153,34,0.2); color: var(--yellow); }
+.df-setop .df-card-header { color: var(--yellow); }
+.df-case .df-step-num { background: rgba(188,140,255,0.2); color: var(--purple); }
+.df-case .df-card-header { color: var(--purple); }
+.df-case-table { width: 100%; border-collapse: collapse; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+.df-case-table th { padding: 2px 5px; text-align: left; font-weight: 600; color: var(--text2); border-bottom: 1px solid var(--border); white-space: nowrap; font-size: 9px; }
+.df-case-table td { padding: 2px 5px; white-space: nowrap; color: var(--text2); border-bottom: 1px solid rgba(48,54,61,0.5); }
+.df-case-table tr.df-case-match td { color: var(--green); }
+.df-case-table tr.df-case-skip td { color: var(--text3); opacity: 0.5; }
+.df-case-table .df-case-result { font-weight: 600; }
+.df-setop-parts { display: flex; flex-direction: column; gap: 8px; padding: 6px; }
+.df-setop-part { border: 1px solid var(--border); border-radius: 4px; padding: 4px; }
+.df-setop-part-label { font-size: 9px; font-weight: 600; color: var(--text3); margin-bottom: 4px; padding: 0 4px; }
 
 /* ===== SCROLLBAR ===== */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -570,6 +583,11 @@ const DB = {
       {CIS_UK:115, POPIS:'KONECNE UKLIDIT', OS_CIS:37, DATUM:'10/07/15'},
       {CIS_UK:120, POPIS:'SEHNAT NOVE LIDI DO TYMU', OS_CIS:7, DATUM:'30/10/15'},
     ]
+  },
+  DUAL: {
+    columns: ['DUMMY'],
+    pk: null,
+    rows: [{DUMMY: 'X'}]
   }
 };
 
@@ -615,7 +633,7 @@ const FROM_KW = new Set(['FROM']);
 const WHERE_KW = new Set(['WHERE','AND','OR','NOT','IN','BETWEEN','LIKE','IS','NULL','EXISTS']);
 const JOIN_KW = new Set(['JOIN','INNER','LEFT','RIGHT','FULL','OUTER','CROSS','ON','USING','NATURAL']);
 const AGG_FN = new Set(['COUNT','SUM','AVG','MAX','MIN']);
-const SCALAR_FN = new Set(['ROUND','UPPER','LOWER','LENGTH','SUBSTR','TRIM','ABS','NVL','COALESCE','MOD','CEIL','FLOOR','TRUNC','REPLACE','LPAD','RPAD','INSTR','INITCAP','TO_CHAR','TO_NUMBER','DECODE','GREATEST','LEAST','SIGN','POWER','SQRT']);
+const SCALAR_FN = new Set(['ROUND','UPPER','LOWER','LENGTH','SUBSTR','TRIM','ABS','NVL','NVL2','NULLIF','COALESCE','MOD','CEIL','FLOOR','TRUNC','REPLACE','LPAD','RPAD','INSTR','INITCAP','TO_CHAR','TO_NUMBER','DECODE','GREATEST','LEAST','SIGN','POWER','SQRT']);
 
 function highlightSQL(sql) {
   const tokens = tokenize(sql);
@@ -657,6 +675,10 @@ function highlightSQL(sql) {
       if (WHERE_KW.has(w) && (clause === 'where' || clause === 'having')) { html += `<span class="${clause === 'having' ? 'syn-having' : 'syn-where'}">${esc}</span>`; continue; }
       if (w === 'ASC' || w === 'DESC') { html += `<span class="syn-order">${esc}</span>`; continue; }
       if (w === 'AS') { html += `<span class="syn-alias">${esc}</span>`; continue; }
+      if (w === 'CASE' || w === 'WHEN' || w === 'THEN' || w === 'ELSE' || w === 'END') { html += `<span class="syn-agg">${esc}</span>`; continue; }
+      if (w === 'UNION' || w === 'INTERSECT' || w === 'MINUS') { html += `<span class="syn-select">${esc}</span>`; continue; }
+      if (w === 'ALL' && i > 0 && tokens[i-1].type === 'word' && tokens[i-1].value.toUpperCase() === 'UNION') { html += `<span class="syn-select">${esc}</span>`; continue; }
+      if (w === 'ROWNUM') { html += `<span class="syn-agg">${esc}</span>`; continue; }
       html += esc; continue;
     }
     html += esc;
@@ -687,7 +709,22 @@ function parseSQL(sql) {
   const tokens = tokenize(trimmed).filter(t => t.type !== 'ws');
   if (tokens.length === 0) throw new Error('Prázdný dotaz');
   if (tokens[0].type !== 'word' || tokens[0].value.toUpperCase() !== 'SELECT') throw new Error('Dotaz musí začínat slovem SELECT');
-  return parseSelect(tokens, 0);
+  let q = parseSelect(tokens, 0);
+  let pos = q.__endPos || tokens.length;
+  while (pos < tokens.length && tokens[pos].type === 'word') {
+    const kw = tokens[pos].value.toUpperCase();
+    let op = null;
+    if (kw === 'UNION') { pos++; if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'ALL') { op = 'UNION ALL'; pos++; } else op = 'UNION'; }
+    else if (kw === 'INTERSECT') { op = 'INTERSECT'; pos++; }
+    else if (kw === 'MINUS') { op = 'MINUS'; pos++; }
+    else break;
+    if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'SELECT') {
+      const right = parseSelect(tokens, pos);
+      q = { type: 'set_op', op, left: q, right };
+      pos = right.__endPos || tokens.length;
+    } else break;
+  }
+  return q;
 }
 
 function parseSelect(tokens, start) {
@@ -698,10 +735,11 @@ function parseSelect(tokens, start) {
   const cr = parseColumnList(tokens, pos); q.columns = cr.columns; pos = cr.pos;
   if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'FROM') { pos++; const fr = parseFromClause(tokens, pos); q.from = fr.tables; pos = fr.pos; }
   while (pos < tokens.length) { const w = tokens[pos].type === 'word' ? tokens[pos].value.toUpperCase() : ''; if (['JOIN','INNER','LEFT','RIGHT','FULL','CROSS','NATURAL'].includes(w)) { const jr = parseJoin(tokens, pos); q.joins.push(jr.join); pos = jr.pos; } else break; }
-  if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'WHERE') { pos++; const wr = parseExpression(tokens, pos, ['GROUP','HAVING','ORDER']); q.where = wr.expr; pos = wr.pos; }
-  if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'GROUP') { pos++; if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'BY') pos++; const gr = parseExpressionList(tokens, pos, ['HAVING','ORDER']); q.groupBy = gr.exprs; pos = gr.pos; }
-  if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'HAVING') { pos++; const hr = parseExpression(tokens, pos, ['ORDER']); q.having = hr.expr; pos = hr.pos; }
+  if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'WHERE') { pos++; const wr = parseExpression(tokens, pos, ['GROUP','HAVING','ORDER','UNION','INTERSECT','MINUS']); q.where = wr.expr; pos = wr.pos; }
+  if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'GROUP') { pos++; if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'BY') pos++; const gr = parseExpressionList(tokens, pos, ['HAVING','ORDER','UNION','INTERSECT','MINUS']); q.groupBy = gr.exprs; pos = gr.pos; }
+  if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'HAVING') { pos++; const hr = parseExpression(tokens, pos, ['ORDER','UNION','INTERSECT','MINUS']); q.having = hr.expr; pos = hr.pos; }
   if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'ORDER') { pos++; if (pos < tokens.length && tokens[pos].type === 'word' && tokens[pos].value.toUpperCase() === 'BY') pos++; const or = parseOrderByList(tokens, pos); q.orderBy = or.items; pos = or.pos; }
+  q.__endPos = pos;
   return q;
 }
 function parseColumnList(tokens, pos) { const cols=[]; while(pos<tokens.length){const w=tokens[pos].type==='word'?tokens[pos].value.toUpperCase():'';if(['FROM','WHERE','GROUP','HAVING','ORDER'].includes(w))break;if(tokens[pos].type==='star'){cols.push({type:'star'});pos++;}else{const er=parseExpr(tokens,pos);const col={type:'expr',expr:er.expr,alias:null};pos=er.pos;if(pos<tokens.length&&tokens[pos].type==='word'&&tokens[pos].value.toUpperCase()==='AS'){pos++;if(pos<tokens.length){col.alias=tokens[pos].type==='dqstring'?tokens[pos].value.slice(1,-1):tokens[pos].value;pos++;}}else if(pos<tokens.length&&tokens[pos].type==='word'){const nw=tokens[pos].value.toUpperCase();if(!['FROM','WHERE','GROUP','HAVING','ORDER','JOIN','INNER','LEFT','RIGHT','FULL','CROSS','NATURAL','ON','USING'].includes(nw)){col.alias=tokens[pos].value;pos++;}}cols.push(col);}if(pos<tokens.length&&tokens[pos].type==='comma'){pos++;continue;}break;}return{columns:cols,pos};}
@@ -716,7 +754,7 @@ function parseComparison(t,p,s){let l=parseConcat(t,p,s);p=l.pos;if(p>=t.length)
 function parseConcat(t,p,s){let l=parseAddSub(t,p,s);p=l.pos;while(p<t.length&&t[p].type==='concat'){p++;const r=parseAddSub(t,p,s);l={expr:{type:'binary',op:'||',left:l.expr,right:r.expr},pos:r.pos};p=r.pos;}return l;}
 function parseAddSub(t,p,s){let l=parseMulDiv(t,p,s);p=l.pos;while(p<t.length&&t[p].type==='op'&&(t[p].value==='+'||t[p].value==='-')){const op=t[p].value;p++;const r=parseMulDiv(t,p,s);l={expr:{type:'binary',op,left:l.expr,right:r.expr},pos:r.pos};p=r.pos;}return l;}
 function parseMulDiv(t,p,s){let l=parseAtom(t,p,s);p=l.pos;while(p<t.length&&((t[p].type==='op'&&t[p].value==='/')||t[p].type==='star')){const op=t[p].type==='star'?'*':t[p].value;p++;const r=parseAtom(t,p,s);l={expr:{type:'binary',op,left:l.expr,right:r.expr},pos:r.pos};p=r.pos;}return l;}
-function parseAtom(t,p,s){if(p>=t.length)return{expr:{type:'literal',value:null},pos:p};const tk=t[p];if(s&&tk.type==='word'&&s.includes(tk.value.toUpperCase()))return{expr:{type:'literal',value:null},pos:p};if(tk.type==='word'&&tk.value.toUpperCase()==='NULL')return{expr:{type:'literal',value:null},pos:p+1};if(tk.type==='number'){const n=tk.value.includes('.')?parseFloat(tk.value):parseInt(tk.value,10);return{expr:{type:'literal',value:n},pos:p+1};}if(tk.type==='string'){const v=tk.value.slice(1,-1).replace(/''/g,"'");return{expr:{type:'literal',value:v},pos:p+1};}if(tk.type==='star')return{expr:{type:'star'},pos:p+1};if(tk.type==='paren_open'){p++;if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='SELECT'){const sq=parseSelect(t,p);let d=1;while(p<t.length&&d>0){if(t[p].type==='paren_open')d++;else if(t[p].type==='paren_close'){d--;if(d===0){p++;break;}}p++;}return{expr:{type:'subquery',query:sq},pos:p};}const inner=parseExpr(t,p,s);p=inner.pos;if(p<t.length&&t[p].type==='paren_close')p++;return{expr:inner.expr,pos:p};}if(tk.type==='word'&&AGG_FN.has(tk.value.toUpperCase())){const fn=tk.value.toUpperCase();p++;if(p<t.length&&t[p].type==='paren_open'){p++;let dist=false;if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='DISTINCT'){dist=true;p++;}if(p<t.length&&t[p].type==='star'){p++;if(p<t.length&&t[p].type==='paren_close')p++;return{expr:{type:'agg',fn,arg:{type:'star'},distinct:dist},pos:p};}const a=parseExpr(t,p,s);p=a.pos;if(p<t.length&&t[p].type==='paren_close')p++;return{expr:{type:'agg',fn,arg:a.expr,distinct:dist},pos:p};}}if(tk.type==='word'&&SCALAR_FN.has(tk.value.toUpperCase())&&p+1<t.length&&t[p+1].type==='paren_open'){const fn=tk.value.toUpperCase();p+=2;const args=[];while(p<t.length&&t[p].type!=='paren_close'){if(t[p].type==='comma'){p++;continue;}const a=parseExpr(t,p,s);args.push(a.expr);p=a.pos;}if(p<t.length)p++;return{expr:{type:'func',fn,args},pos:p};}if(tk.type==='word'){p++;if(p<t.length&&t[p].type==='dot'){p++;if(p<t.length&&(t[p].type==='word'||t[p].type==='star')){const c=t[p].type==='star'?'*':t[p].value.toUpperCase();p++;return{expr:{type:'column',table:tk.value.toUpperCase(),name:c},pos:p};}}return{expr:{type:'column',table:null,name:tk.value.toUpperCase()},pos:p};}if(tk.type==='op'&&tk.value==='-'){p++;const inner=parseAtom(t,p,s);return{expr:{type:'unary',op:'-',operand:inner.expr},pos:inner.pos};}p++;return{expr:{type:'literal',value:null},pos:p};}
+function parseAtom(t,p,s){if(p>=t.length)return{expr:{type:'literal',value:null},pos:p};const tk=t[p];if(s&&tk.type==='word'&&s.includes(tk.value.toUpperCase()))return{expr:{type:'literal',value:null},pos:p};if(tk.type==='word'&&tk.value.toUpperCase()==='NULL')return{expr:{type:'literal',value:null},pos:p+1};if(tk.type==='number'){const n=tk.value.includes('.')?parseFloat(tk.value):parseInt(tk.value,10);return{expr:{type:'literal',value:n},pos:p+1};}if(tk.type==='string'){const v=tk.value.slice(1,-1).replace(/''/g,"'");return{expr:{type:'literal',value:v},pos:p+1};}if(tk.type==='star')return{expr:{type:'star'},pos:p+1};if(tk.type==='paren_open'){p++;if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='SELECT'){const sq=parseSelect(t,p);let d=1;while(p<t.length&&d>0){if(t[p].type==='paren_open')d++;else if(t[p].type==='paren_close'){d--;if(d===0){p++;break;}}p++;}return{expr:{type:'subquery',query:sq},pos:p};}const inner=parseExpr(t,p,s);p=inner.pos;if(p<t.length&&t[p].type==='paren_close')p++;return{expr:inner.expr,pos:p};}if(tk.type==='word'&&AGG_FN.has(tk.value.toUpperCase())){const fn=tk.value.toUpperCase();p++;if(p<t.length&&t[p].type==='paren_open'){p++;let dist=false;if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='DISTINCT'){dist=true;p++;}if(p<t.length&&t[p].type==='star'){p++;if(p<t.length&&t[p].type==='paren_close')p++;return{expr:{type:'agg',fn,arg:{type:'star'},distinct:dist},pos:p};}const a=parseExpr(t,p,s);p=a.pos;if(p<t.length&&t[p].type==='paren_close')p++;return{expr:{type:'agg',fn,arg:a.expr,distinct:dist},pos:p};}}if(tk.type==='word'&&tk.value.toUpperCase()==='CASE'){p++;const whens=[];let elseExpr=null;let simple=null;if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()!=='WHEN'){const sr=parseExpr(t,p,s);simple=sr.expr;p=sr.pos;}while(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='WHEN'){p++;const wr=parseExpr(t,p,s);p=wr.pos;if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='THEN')p++;const tr=parseExpr(t,p,s);p=tr.pos;whens.push({when:wr.expr,then:tr.expr});}if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='ELSE'){p++;const er=parseExpr(t,p,s);elseExpr=er.expr;p=er.pos;}if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='END')p++;return{expr:{type:'case',simple,whens,else:elseExpr},pos:p};}if(tk.type==='word'&&tk.value.toUpperCase()==='EXISTS'&&p+1<t.length&&t[p+1].type==='paren_open'){p+=2;const sq=parseSelect(t,p);let d=1;while(p<t.length&&d>0){if(t[p].type==='paren_open')d++;else if(t[p].type==='paren_close'){d--;if(d===0){p++;break;}}p++;}return{expr:{type:'exists',query:sq,not:false},pos:p};}if(tk.type==='word'&&SCALAR_FN.has(tk.value.toUpperCase())&&p+1<t.length&&t[p+1].type==='paren_open'){const fn=tk.value.toUpperCase();p+=2;const args=[];while(p<t.length&&t[p].type!=='paren_close'){if(t[p].type==='comma'){p++;continue;}const a=parseExpr(t,p,s);args.push(a.expr);p=a.pos;}if(p<t.length)p++;return{expr:{type:'func',fn,args},pos:p};}if(tk.type==='word'){p++;if(p<t.length&&t[p].type==='dot'){p++;if(p<t.length&&(t[p].type==='word'||t[p].type==='star')){const c=t[p].type==='star'?'*':t[p].value.toUpperCase();p++;return{expr:{type:'column',table:tk.value.toUpperCase(),name:c},pos:p};}}return{expr:{type:'column',table:null,name:tk.value.toUpperCase()},pos:p};}if(tk.type==='op'&&tk.value==='-'){p++;const inner=parseAtom(t,p,s);return{expr:{type:'unary',op:'-',operand:inner.expr},pos:inner.pos};}p++;return{expr:{type:'literal',value:null},pos:p};}
 function parseExpressionList(t,p,s){const e=[];while(p<t.length){if(t[p].type==='word'&&s&&s.includes(t[p].value.toUpperCase()))break;const r=parseExpr(t,p,s);e.push(r.expr);p=r.pos;if(p<t.length&&t[p].type==='comma'){p++;continue;}break;}return{exprs:e,pos:p};}
 function parseOrderByList(t,p){const items=[];while(p<t.length){const r=parseExpr(t,p,[]);let d='ASC';p=r.pos;if(p<t.length&&t[p].type==='word'){const v=t[p].value.toUpperCase();if(v==='ASC'||v==='DESC'){d=v;p++;}}items.push({expr:r.expr,dir:d});if(p<t.length&&t[p].type==='comma'){p++;continue;}break;}return{items,pos:p};}
 
@@ -724,6 +762,16 @@ function parseOrderByList(t,p){const items=[];while(p<t.length){const r=parseExp
 // SQL EXECUTOR
 // ============================================================
 function executeAST(query) {
+  // Handle set operations (UNION, INTERSECT, MINUS)
+  if (query.type === 'set_op') {
+    const left = executeAST(query.left), right = executeAST(query.right);
+    const cols = left.columns;
+    const key = r => cols.map(c => { const v = r[c]; return v === null ? '__NULL__' : String(v); }).join('|||');
+    if (query.op === 'UNION ALL') return { columns: cols, rows: [...left.rows, ...right.rows] };
+    if (query.op === 'UNION') { const seen = new Set(); const res = []; for (const r of [...left.rows, ...right.rows]) { const k = key(r); if (!seen.has(k)) { seen.add(k); res.push(r); } } return { columns: cols, rows: res }; }
+    if (query.op === 'INTERSECT') { const rKeys = new Set(right.rows.map(key)); const seen = new Set(); const res = []; for (const r of left.rows) { const k = key(r); if (rKeys.has(k) && !seen.has(k)) { seen.add(k); res.push(r); } } return { columns: cols, rows: res }; }
+    if (query.op === 'MINUS') { const rKeys = new Set(right.rows.map(key)); const res = []; for (const r of left.rows) { if (!rKeys.has(key(r))) res.push(r); } return { columns: cols, rows: res }; }
+  }
   let rows = [];
   const aliasMap = {};
   if (query.from.length === 0) { rows = [{}]; }
@@ -742,6 +790,7 @@ function executeAST(query) {
     else if(join.on){const nr=[];for(const lr of rows){let m=false;for(const rr of tbl.rows){const c={...lr};storeJC(c,rr,1);if(evalExpr(join.on,c)){nr.push(c);m=true;}}if(!m&&(join.type==='LEFT'||join.type==='FULL')){const c={...lr};storeJC(c,{},null);nr.push(c);}}rows=nr;}
     else{const nr=[];for(const lr of rows){for(const rr of tbl.rows){const c={...lr};storeJC(c,rr,1);nr.push(c);}}rows=nr;}
   }
+  for(let i=0;i<rows.length;i++)rows[i].ROWNUM=i+1;
   if(query.where){rows=rows.filter(r=>evalExpr(query.where,r)===true);}
   if(query.groupBy.length>0){const g=new Map();for(const r of rows){const k=query.groupBy.map(e=>{const v=evalExpr(e,r);return v===null?'__NULL__':String(v);}).join('|||');if(!g.has(k))g.set(k,[]);g.get(k).push(r);}const gr=[];for(const[,grs]of g)gr.push({__group__:grs,...grs[0]});rows=gr;}
   else if(hasAgg(query.columns)||query.having){rows=[{__group__:rows,...(rows[0]||{})}];}
@@ -755,12 +804,12 @@ function executeAST(query) {
 }
 function getTable(n){const u=n.toUpperCase();if(DB[u])return DB[u];throw new Error(`Tabulka "${n}" neexistuje. Dostupné: ${Object.keys(DB).join(', ')}`);}
 function valuesEqual(a,b){if(a===null||b===null)return false;return String(a).toUpperCase()===String(b).toUpperCase();}
-function evalExpr(e,r){if(!e)return null;switch(e.type){case'literal':return e.value;case'star':return null;case'column':{const n=e.name;if(e.table){const q=e.table+'.'+n;if(q in r)return r[q];}if(n in r)return r[n];for(const k of Object.keys(r))if(k.toUpperCase()===n||k.toUpperCase()===(e.table?e.table+'.'+n:''))return r[k];return null;}case'binary':{if(e.op==='AND')return evalExpr(e.left,r)===true&&evalExpr(e.right,r)===true;if(e.op==='OR')return evalExpr(e.left,r)===true||evalExpr(e.right,r)===true;const lv=evalExpr(e.left,r),rv=evalExpr(e.right,r);if(e.op==='||'){return (lv===null?'':String(lv))+(rv===null?'':String(rv));}if(e.op==='+'){if(lv===null||rv===null)return null;return Number(lv)+Number(rv);}if(e.op==='-'){if(lv===null||rv===null)return null;return Number(lv)-Number(rv);}if(e.op==='*'){if(lv===null||rv===null)return null;return Number(lv)*Number(rv);}if(e.op==='/'){if(lv===null||rv===null)return null;if(Number(rv)===0)throw new Error('Dělení nulou');return Number(lv)/Number(rv);}if(lv===null||rv===null)return null;if(e.op==='=')return valuesEqual(lv,rv);if(e.op==='!=')return!valuesEqual(lv,rv);if(e.op==='<')return Number(lv)<Number(rv);if(e.op==='>')return Number(lv)>Number(rv);if(e.op==='<=')return Number(lv)<=Number(rv);if(e.op==='>=')return Number(lv)>=Number(rv);return null;}case'unary':{if(e.op==='NOT'){const v=evalExpr(e.operand,r);return v===null?null:!v;}if(e.op==='-'){const v=evalExpr(e.operand,r);return v===null?null:-Number(v);}return null;}case'is_null':{const v=evalExpr(e.expr,r);return e.not?v!==null:v===null;}case'like':{const v=evalExpr(e.expr,r),p=evalExpr(e.pattern,r);if(v===null||p===null)return null;const ps=String(p).toUpperCase(),vs=String(v).toUpperCase();let ri=0,pi=0;function ml(ri,pi){if(pi>=ps.length)return ri>=vs.length;if(ps[pi]==='%'){while(pi<ps.length&&ps[pi]==='%')pi++;if(pi>=ps.length)return true;for(let i=ri;i<=vs.length;i++)if(ml(i,pi))return true;return false;}if(ri>=vs.length)return false;if(ps[pi]==='_'||ps[pi]===vs[ri])return ml(ri+1,pi+1);return false;}return ml(0,0);}case'in':{const v=evalExpr(e.expr,r);if(v===null)return null;for(const val of e.values)if(valuesEqual(v,evalExpr(val,r)))return true;return false;}case'between':{const v=evalExpr(e.expr,r),lo=evalExpr(e.low,r),hi=evalExpr(e.high,r);if(v===null||lo===null||hi===null)return null;return Number(v)>=Number(lo)&&Number(v)<=Number(hi);}case'agg':{const g=r.__group__||[r],fn=e.fn;if(fn==='COUNT'){if(e.arg.type==='star')return g.length;let c=0;const sn=e.distinct?new Set():null;for(const x of g){const v=evalExpr(e.arg,x);if(v!==null){if(sn){const sv=String(v).toUpperCase();if(!sn.has(sv)){sn.add(sv);c++;}}else c++;}}return c;}const vs=[];const sn=e.distinct?new Set():null;for(const x of g){const v=evalExpr(e.arg,x);if(v!==null){if(sn){const sv=String(v).toUpperCase();if(!sn.has(sv)){sn.add(sv);vs.push(Number(v));}}else vs.push(Number(v));}}if(vs.length===0)return null;if(fn==='SUM')return vs.reduce((a,b)=>a+b,0);if(fn==='AVG')return vs.reduce((a,b)=>a+b,0)/vs.length;if(fn==='MAX')return Math.max(...vs);if(fn==='MIN')return Math.min(...vs);return null;}case'func':{const args=e.args.map(a=>evalExpr(a,r));const fn=e.fn;if(fn==='ROUND'){const v=args[0],n=args[1]??0;if(v===null)return null;const f=Math.pow(10,Number(n));return Math.round(Number(v)*f)/f;}if(fn==='TRUNC'){const v=args[0],n=args[1]??0;if(v===null)return null;const f=Math.pow(10,Number(n));return Math.trunc(Number(v)*f)/f;}if(fn==='UPPER')return args[0]===null?null:String(args[0]).toUpperCase();if(fn==='LOWER')return args[0]===null?null:String(args[0]).toLowerCase();if(fn==='LENGTH')return args[0]===null?null:String(args[0]).length;if(fn==='SUBSTR'){if(args[0]===null)return null;const str=String(args[0]),st=Number(args[1])-1;return args[2]!=null?str.substr(st,Number(args[2])):str.substr(st);}if(fn==='TRIM')return args[0]===null?null:String(args[0]).trim();if(fn==='ABS')return args[0]===null?null:Math.abs(Number(args[0]));if(fn==='NVL')return args[0]===null?args[1]:args[0];if(fn==='COALESCE'){for(const a of args)if(a!==null)return a;return null;}if(fn==='MOD')return args[0]===null||args[1]===null?null:Number(args[0])%Number(args[1]);if(fn==='CEIL')return args[0]===null?null:Math.ceil(Number(args[0]));if(fn==='FLOOR')return args[0]===null?null:Math.floor(Number(args[0]));if(fn==='REPLACE'){if(args[0]===null)return null;return String(args[0]).split(String(args[1])).join(String(args[2]??''));}if(fn==='LPAD'){if(args[0]===null)return null;return String(args[0]).padStart(Number(args[1]),String(args[2]??' '));}if(fn==='RPAD'){if(args[0]===null)return null;return String(args[0]).padEnd(Number(args[1]),String(args[2]??' '));}if(fn==='INSTR'){if(args[0]===null||args[1]===null)return null;const i=String(args[0]).indexOf(String(args[1]));return i===-1?0:i+1;}if(fn==='INITCAP'){if(args[0]===null)return null;return String(args[0]).toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());}if(fn==='TO_CHAR')return args[0]===null?null:String(args[0]);if(fn==='TO_NUMBER')return args[0]===null?null:Number(args[0]);if(fn==='GREATEST'){const vs=args.filter(a=>a!==null);return vs.length===0?null:Math.max(...vs.map(Number));}if(fn==='LEAST'){const vs=args.filter(a=>a!==null);return vs.length===0?null:Math.min(...vs.map(Number));}if(fn==='SIGN')return args[0]===null?null:Math.sign(Number(args[0]));if(fn==='POWER')return args[0]===null||args[1]===null?null:Math.pow(Number(args[0]),Number(args[1]));if(fn==='SQRT')return args[0]===null?null:Math.sqrt(Number(args[0]));if(fn==='DECODE'){const v=args[0];for(let i=1;i<args.length-1;i+=2){if(valuesEqual(v,args[i]))return args[i+1];}return args.length%2===0?args[args.length-1]:null;}return null;}case'subquery':{const res=executeAST(e.query);if(res.rows.length===0)return null;return res.rows[0][res.columns[0]];}}return null;}
+function evalExpr(e,r){if(!e)return null;switch(e.type){case'literal':return e.value;case'star':return null;case'column':{const n=e.name;if(e.table){const q=e.table+'.'+n;if(q in r)return r[q];}if(n in r)return r[n];for(const k of Object.keys(r))if(k.toUpperCase()===n||k.toUpperCase()===(e.table?e.table+'.'+n:''))return r[k];return null;}case'binary':{if(e.op==='AND')return evalExpr(e.left,r)===true&&evalExpr(e.right,r)===true;if(e.op==='OR')return evalExpr(e.left,r)===true||evalExpr(e.right,r)===true;const lv=evalExpr(e.left,r),rv=evalExpr(e.right,r);if(e.op==='||'){return (lv===null?'':String(lv))+(rv===null?'':String(rv));}if(e.op==='+'){if(lv===null||rv===null)return null;return Number(lv)+Number(rv);}if(e.op==='-'){if(lv===null||rv===null)return null;return Number(lv)-Number(rv);}if(e.op==='*'){if(lv===null||rv===null)return null;return Number(lv)*Number(rv);}if(e.op==='/'){if(lv===null||rv===null)return null;if(Number(rv)===0)throw new Error('Dělení nulou');return Number(lv)/Number(rv);}if(lv===null||rv===null)return null;if(e.op==='=')return valuesEqual(lv,rv);if(e.op==='!=')return!valuesEqual(lv,rv);if(e.op==='<')return Number(lv)<Number(rv);if(e.op==='>')return Number(lv)>Number(rv);if(e.op==='<=')return Number(lv)<=Number(rv);if(e.op==='>=')return Number(lv)>=Number(rv);return null;}case'unary':{if(e.op==='NOT'){const v=evalExpr(e.operand,r);return v===null?null:!v;}if(e.op==='-'){const v=evalExpr(e.operand,r);return v===null?null:-Number(v);}return null;}case'is_null':{const v=evalExpr(e.expr,r);return e.not?v!==null:v===null;}case'like':{const v=evalExpr(e.expr,r),p=evalExpr(e.pattern,r);if(v===null||p===null)return null;const ps=String(p).toUpperCase(),vs=String(v).toUpperCase();let ri=0,pi=0;function ml(ri,pi){if(pi>=ps.length)return ri>=vs.length;if(ps[pi]==='%'){while(pi<ps.length&&ps[pi]==='%')pi++;if(pi>=ps.length)return true;for(let i=ri;i<=vs.length;i++)if(ml(i,pi))return true;return false;}if(ri>=vs.length)return false;if(ps[pi]==='_'||ps[pi]===vs[ri])return ml(ri+1,pi+1);return false;}return ml(0,0);}case'in':{const v=evalExpr(e.expr,r);if(v===null)return null;for(const val of e.values)if(valuesEqual(v,evalExpr(val,r)))return true;return false;}case'between':{const v=evalExpr(e.expr,r),lo=evalExpr(e.low,r),hi=evalExpr(e.high,r);if(v===null||lo===null||hi===null)return null;return Number(v)>=Number(lo)&&Number(v)<=Number(hi);}case'agg':{const g=r.__group__||[r],fn=e.fn;if(fn==='COUNT'){if(e.arg.type==='star')return g.length;let c=0;const sn=e.distinct?new Set():null;for(const x of g){const v=evalExpr(e.arg,x);if(v!==null){if(sn){const sv=String(v).toUpperCase();if(!sn.has(sv)){sn.add(sv);c++;}}else c++;}}return c;}const vs=[];const sn=e.distinct?new Set():null;for(const x of g){const v=evalExpr(e.arg,x);if(v!==null){if(sn){const sv=String(v).toUpperCase();if(!sn.has(sv)){sn.add(sv);vs.push(Number(v));}}else vs.push(Number(v));}}if(vs.length===0)return null;if(fn==='SUM')return vs.reduce((a,b)=>a+b,0);if(fn==='AVG')return vs.reduce((a,b)=>a+b,0)/vs.length;if(fn==='MAX')return Math.max(...vs);if(fn==='MIN')return Math.min(...vs);return null;}case'func':{const args=e.args.map(a=>evalExpr(a,r));const fn=e.fn;if(fn==='ROUND'){const v=args[0],n=args[1]??0;if(v===null)return null;const f=Math.pow(10,Number(n));return Math.round(Number(v)*f)/f;}if(fn==='TRUNC'){const v=args[0],n=args[1]??0;if(v===null)return null;const f=Math.pow(10,Number(n));return Math.trunc(Number(v)*f)/f;}if(fn==='UPPER')return args[0]===null?null:String(args[0]).toUpperCase();if(fn==='LOWER')return args[0]===null?null:String(args[0]).toLowerCase();if(fn==='LENGTH')return args[0]===null?null:String(args[0]).length;if(fn==='SUBSTR'){if(args[0]===null)return null;const str=String(args[0]),st=Number(args[1])-1;return args[2]!=null?str.substr(st,Number(args[2])):str.substr(st);}if(fn==='TRIM')return args[0]===null?null:String(args[0]).trim();if(fn==='ABS')return args[0]===null?null:Math.abs(Number(args[0]));if(fn==='NVL')return args[0]===null?args[1]:args[0];if(fn==='COALESCE'){for(const a of args)if(a!==null)return a;return null;}if(fn==='MOD')return args[0]===null||args[1]===null?null:Number(args[0])%Number(args[1]);if(fn==='CEIL')return args[0]===null?null:Math.ceil(Number(args[0]));if(fn==='FLOOR')return args[0]===null?null:Math.floor(Number(args[0]));if(fn==='REPLACE'){if(args[0]===null)return null;return String(args[0]).split(String(args[1])).join(String(args[2]??''));}if(fn==='LPAD'){if(args[0]===null)return null;return String(args[0]).padStart(Number(args[1]),String(args[2]??' '));}if(fn==='RPAD'){if(args[0]===null)return null;return String(args[0]).padEnd(Number(args[1]),String(args[2]??' '));}if(fn==='INSTR'){if(args[0]===null||args[1]===null)return null;const i=String(args[0]).indexOf(String(args[1]));return i===-1?0:i+1;}if(fn==='INITCAP'){if(args[0]===null)return null;return String(args[0]).toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());}if(fn==='TO_CHAR')return args[0]===null?null:String(args[0]);if(fn==='TO_NUMBER')return args[0]===null?null:Number(args[0]);if(fn==='GREATEST'){const vs=args.filter(a=>a!==null);return vs.length===0?null:Math.max(...vs.map(Number));}if(fn==='LEAST'){const vs=args.filter(a=>a!==null);return vs.length===0?null:Math.min(...vs.map(Number));}if(fn==='SIGN')return args[0]===null?null:Math.sign(Number(args[0]));if(fn==='POWER')return args[0]===null||args[1]===null?null:Math.pow(Number(args[0]),Number(args[1]));if(fn==='SQRT')return args[0]===null?null:Math.sqrt(Number(args[0]));if(fn==='DECODE'){const v=args[0];for(let i=1;i<args.length-1;i+=2){if(valuesEqual(v,args[i]))return args[i+1];}return args.length%2===0?args[args.length-1]:null;}if(fn==='NVL2'){return args[0]!==null?args[1]:args[2];}if(fn==='NULLIF'){return valuesEqual(args[0],args[1])?null:args[0];}return null;}case'case':{if(e.simple){const sv=evalExpr(e.simple,r);for(const w of e.whens){if(valuesEqual(sv,evalExpr(w.when,r)))return evalExpr(w.then,r);}return e.else?evalExpr(e.else,r):null;}for(const w of e.whens){if(evalExpr(w.when,r)===true)return evalExpr(w.then,r);}return e.else?evalExpr(e.else,r):null;}case'exists':{const res=executeAST(e.query);return res.rows.length>0;}case'subquery':{const res=executeAST(e.query);if(res.rows.length===0)return null;return res.rows[0][res.columns[0]];}}return null;}
 function evalExprR(e,r,rc){if(e.type==='column'&&!e.table){for(const c of rc)if(c.toUpperCase()===e.name)return r[c];}return evalExpr(e,r);}
 function cmpVals(a,b){if(a===null&&b===null)return 0;if(a===null)return-1;if(b===null)return 1;if(typeof a==='number'&&typeof b==='number')return a-b;const na=Number(a),nb=Number(b);if(!isNaN(na)&&!isNaN(nb))return na-nb;return String(a).localeCompare(String(b));}
 function hasAgg(cols){for(const c of cols)if(c.type==='expr'&&exprHasAgg(c.expr))return true;return false;}
-function exprHasAgg(e){if(!e)return false;if(e.type==='agg')return true;if(e.type==='binary')return exprHasAgg(e.left)||exprHasAgg(e.right);if(e.type==='unary')return exprHasAgg(e.operand);if(e.type==='func')return e.args.some(a=>exprHasAgg(a));return false;}
-function exprName(e){if(!e)return'?';if(e.type==='column')return e.name;if(e.type==='literal')return e.value===null?'NULL':String(e.value);if(e.type==='agg')return e.fn+'('+(e.arg.type==='star'?'*':exprName(e.arg))+')';if(e.type==='func')return e.fn+'('+e.args.map(exprName).join(',')+')';if(e.type==='binary')return exprName(e.left)+e.op+exprName(e.right);return'?';}
+function exprHasAgg(e){if(!e)return false;if(e.type==='agg')return true;if(e.type==='binary')return exprHasAgg(e.left)||exprHasAgg(e.right);if(e.type==='unary')return exprHasAgg(e.operand);if(e.type==='func')return e.args.some(a=>exprHasAgg(a));if(e.type==='case'){for(const w of e.whens){if(exprHasAgg(w.when)||exprHasAgg(w.then))return true;}return e.else?exprHasAgg(e.else):false;}return false;}
+function exprName(e){if(!e)return'?';if(e.type==='column')return e.name;if(e.type==='literal')return e.value===null?'NULL':String(e.value);if(e.type==='agg')return e.fn+'('+(e.arg.type==='star'?'*':exprName(e.arg))+')';if(e.type==='func')return e.fn+'('+e.args.map(exprName).join(',')+')';if(e.type==='case')return'CASE';if(e.type==='binary')return exprName(e.left)+e.op+exprName(e.right);return'?';}
 
 // ============================================================
 // PIPELINE: SCHEMA + JOIN LINES + FLOW STEPS
@@ -1226,6 +1275,11 @@ const EXAMPLES = [
   { name: 'ROUND + AVG', sql: "SELECT cis_odd,\n  ROUND(AVG(plat), 2) AS prumer,\n  ROUND(AVG(plat) * 12, 2) AS rocni_plat\nFROM zam\nGROUP BY cis_odd" },
   { name: 'RIGHT JOIN', sql: "SELECT oddel.nazev, jmeno\nFROM zam\nRIGHT JOIN oddel ON oddel.sef = zam.os_cis" },
   { name: 'JOIN + GROUP BY + HAVING', sql: "SELECT oddel.nazev\nFROM oddel\nJOIN zam USING (cis_odd)\nGROUP BY oddel.nazev\nHAVING COUNT(zam.titul) >= 2" },
+  { name: 'CASE WHEN', sql: "SELECT jmeno, plat,\n  CASE\n    WHEN plat >= 12000 THEN 'vysoka'\n    WHEN plat >= 8000 THEN 'stredni'\n    ELSE 'nizka'\n  END AS kategorie\nFROM zam" },
+  { name: 'UNION', sql: "SELECT jmeno, fce FROM zam WHERE cis_odd = 1\nUNION\nSELECT jmeno, fce FROM zam WHERE plat > 10000" },
+  { name: 'EXISTS', sql: "SELECT jmeno, fce\nFROM zam z\nWHERE EXISTS (\n  SELECT 1 FROM ukoly u\n  WHERE u.os_cis = z.os_cis\n)" },
+  { name: 'ROWNUM', sql: "SELECT jmeno, plat, ROWNUM\nFROM zam\nWHERE ROWNUM <= 5" },
+  { name: 'NVL + NVL2', sql: "SELECT jmeno,\n  NVL(titul, 'bez titulu') AS titul,\n  NVL2(titul, 'ma titul', 'nema') AS stav\nFROM zam" },
 ];
 
 function initExamples() {
@@ -1337,6 +1391,7 @@ function collectColumns(expr) {
     if (e.type === 'unary') { walk(e.operand); return; }
     if (e.type === 'agg') { walk(e.arg); return; }
     if (e.type === 'func') { e.args.forEach(walk); return; }
+    if (e.type === 'case') { for(const w of e.whens){walk(w.when);walk(w.then);} if(e.else)walk(e.else); if(e.simple)walk(e.simple); return; }
     if (e.type === 'is_null') { walk(e.expr); return; }
     if (e.type === 'between') { walk(e.expr); walk(e.low); walk(e.high); return; }
     if (e.type === 'like') { walk(e.expr); return; }
@@ -1349,11 +1404,8 @@ function collectColumns(expr) {
 // ============================================================
 // STEPPED EXECUTOR (before/after for each SQL clause)
 // ============================================================
-function executeASTStepped(sql) {
+function executeASTSteppedQuery(query, sqlText) {
   const steps = [];
-  let query;
-  try { query = parseSQL(sql); } catch(e) { return steps; }
-
   let rows = [];
   const aliasMap = {};
   const MAX_PREVIEW = 2;
@@ -1366,7 +1418,7 @@ function executeASTStepped(sql) {
     return cols;
   }
   function snapshot(rs) { const c = displayCols(rs); return { columns: c, rows: rs.slice(0, MAX_PREVIEW), total: rs.length }; }
-  const clauses = extractClauses(sql);
+  const clauses = sqlText ? extractClauses(sqlText) : {};
   let joinIdx = 0;
 
   // Helper: build colHL entries for a set of columns with a CSS class
@@ -1395,6 +1447,7 @@ function executeASTStepped(sql) {
       if (e.type === 'unary') { walk(e.operand); return; }
       if (e.type === 'agg') { walk(e.arg); return; }
       if (e.type === 'func') { e.args.forEach(walk); return; }
+      if (e.type === 'case') { for(const w of e.whens){walk(w.when);walk(w.then);} if(e.else)walk(e.else); if(e.simple)walk(e.simple); return; }
       if (e.type === 'is_null') { walk(e.expr); return; }
       if (e.type === 'between') { walk(e.expr); walk(e.low); walk(e.high); return; }
       if (e.type === 'like') { walk(e.expr); return; }
@@ -1516,6 +1569,40 @@ function executeASTStepped(sql) {
       hlInfo: { tablesFrom: new Set(), tablesJoin: new Set(), colHL: buildColHLFromExpr(query.having, 'hl-having'), joinLinks: [] } });
   }
 
+  // CASE WHEN step — show evaluation of CASE expressions before SELECT
+  const caseExprs = query.columns.filter(c => c.expr && c.expr.type === 'case');
+  if (caseExprs.length > 0) {
+    const caseDetails = [];
+    const previewRows = rows.slice(0, 4);
+    for (const col of caseExprs) {
+      const ce = col.expr;
+      const alias = (col.alias || 'CASE').toUpperCase();
+      for (const row of previewRows) {
+        const inputCol = collectColumns(ce).values().next().value;
+        const inputVal = inputCol ? (row[inputCol] !== undefined ? row[inputCol] : null) : null;
+        let matched = false;
+        for (let wi = 0; wi < ce.whens.length; wi++) {
+          const w = ce.whens[wi];
+          let cond;
+          if (ce.simple) {
+            cond = valuesEqual(evalExpr(ce.simple, row), evalExpr(w.when, row));
+          } else {
+            cond = evalExpr(w.when, row) === true;
+          }
+          if (cond && !matched) {
+            caseDetails.push({ inputVal, whenIdx: wi, when: w, result: evalExpr(w.then, row), match: true, alias });
+            matched = true;
+          }
+        }
+        if (!matched) {
+          caseDetails.push({ inputVal, whenIdx: -1, when: null, result: ce.else ? evalExpr(ce.else, row) : null, match: false, alias, isElse: true });
+        }
+      }
+    }
+    steps.push({ step: 'case', label: 'CASE WHEN vyhodnocení', before: null, after: null, caseDetails, caseExprs: caseExprs.map(c => c.expr),
+      hlInfo: { tablesFrom: new Set(), tablesJoin: new Set(), colHL: new Map(), joinLinks: [] } });
+  }
+
   // SELECT
   const rc = [], rr = [];
   for (const col of query.columns) {
@@ -1546,6 +1633,131 @@ function executeASTStepped(sql) {
     const orderColHL = new Map(); for (const o of query.orderBy) { const m = buildColHLFromExpr(o.expr, 'hl-order'); for (const [k, v] of m) { if (!orderColHL.has(k)) orderColHL.set(k, new Set()); v.forEach(x => orderColHL.get(k).add(x)); } }
     steps.push({ step: 'order', label: clauses['ORDER BY'] || 'ORDER BY', before: { columns: rc, rows: beforeOrder, total: fr.length }, after: { columns: rc, rows: fr.slice(0, MAX_PREVIEW), total: fr.length }, activeCols: orderActive,
       hlInfo: { tablesFrom: new Set(), tablesJoin: new Set(), colHL: orderColHL, joinLinks: [] } });
+  }
+
+  return steps;
+}
+
+function executeASTStepped(sql) {
+  let query;
+  try { query = parseSQL(sql); } catch(e) { return []; }
+
+  // Handle set operations (UNION / INTERSECT / MINUS)
+  if (query.type === 'set_op') {
+    return executeASTSteppedSetOp(query, sql);
+  }
+
+  return executeASTSteppedQuery(query, sql);
+}
+
+function executeASTSteppedSetOp(query, sql) {
+  const steps = [];
+  const MAX_PREVIEW = 2;
+
+  // Collect all parts of the set operation
+  function collectParts(q) {
+    if (q.type === 'set_op') {
+      const left = collectParts(q.left);
+      const right = collectParts(q.right);
+      return [...left, { op: q.op, query: right[0].query }];
+    }
+    return [{ op: null, query: q }];
+  }
+  const parts = collectParts(query);
+
+  // Split SQL text into sub-query texts
+  const sqlParts = [];
+  if (sql) {
+    const upper = sql.toUpperCase();
+    const splits = [];
+    let depth = 0;
+    for (let i = 0; i < sql.length; i++) {
+      if (sql[i] === '(') depth++;
+      else if (sql[i] === ')') depth--;
+      else if (depth === 0) {
+        for (const kw of ['UNION ALL', 'UNION', 'INTERSECT', 'MINUS']) {
+          if (upper.substring(i, i + kw.length) === kw && (i === 0 || /\s/.test(sql[i-1])) && (i + kw.length >= sql.length || /\s/.test(sql[i + kw.length]))) {
+            splits.push({ pos: i, len: kw.length });
+            break;
+          }
+        }
+      }
+    }
+    if (splits.length === 0) { sqlParts.push(sql); }
+    else {
+      let prev = 0;
+      for (const sp of splits) { sqlParts.push(sql.substring(prev, sp.pos).trim()); prev = sp.pos + sp.len; }
+      sqlParts.push(sql.substring(prev).trim());
+    }
+  }
+
+  // Step through each SELECT sub-query
+  const partResults = [];
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    const partSql = i < sqlParts.length ? sqlParts[i] : null;
+    const partSteps = executeASTSteppedQuery(part.query, partSql);
+    // Add sub-query label prefix
+    const prefix = parts.length === 2 ? (i === 0 ? '① ' : '② ') : `${String.fromCodePoint(0x2460 + i)} `;
+    for (const s of partSteps) {
+      s.label = prefix + s.label;
+      steps.push(s);
+    }
+    // Execute to get result
+    const result = executeAST(part.query);
+    partResults.push(result);
+
+    // Add separator arrow between sub-queries
+    if (i < parts.length - 1 && parts[i + 1].op) {
+      // The op label step will be added as the merge step
+    }
+  }
+
+  // Now add the merge step
+  if (partResults.length >= 2) {
+    let merged = partResults[0];
+    let opLabel = '';
+    let partIdx = 1;
+    // Re-walk the tree to get ops in order
+    function getOps(q) {
+      if (q.type === 'set_op') { const left = getOps(q.left); return [...left, q.op]; }
+      return [];
+    }
+    const ops = getOps(query);
+
+    for (let i = 0; i < ops.length; i++) {
+      const op = ops[i];
+      const right = partResults[i + 1];
+      const cols = merged.columns;
+      const key = r => cols.map(c => { const v = r[c]; return v === null ? '__NULL__' : String(v); }).join('|||');
+
+      let resultRows;
+      if (op === 'UNION ALL') {
+        resultRows = [...merged.rows, ...right.rows];
+      } else if (op === 'UNION') {
+        const seen = new Set();
+        resultRows = [];
+        for (const r of [...merged.rows, ...right.rows]) { const k = key(r); if (!seen.has(k)) { seen.add(k); resultRows.push(r); } }
+      } else if (op === 'INTERSECT') {
+        const leftKeys = new Set(merged.rows.map(key));
+        resultRows = right.rows.filter(r => leftKeys.has(key(r)));
+      } else if (op === 'MINUS') {
+        const rightKeys = new Set(right.rows.map(key));
+        resultRows = merged.rows.filter(r => !rightKeys.has(key(r)));
+      }
+
+      const beforeLeft = { columns: cols, rows: merged.rows.slice(0, MAX_PREVIEW), total: merged.rows.length };
+      const beforeRight = { columns: right.columns, rows: right.rows.slice(0, MAX_PREVIEW), total: right.rows.length };
+
+      steps.push({
+        step: 'setop', label: op,
+        before: beforeLeft, after: { columns: cols, rows: resultRows.slice(0, MAX_PREVIEW), total: resultRows.length },
+        setopRight: beforeRight,
+        hlInfo: { tablesFrom: new Set(), tablesJoin: new Set(), colHL: new Map(), joinLinks: [] }
+      });
+
+      merged = { columns: cols, rows: resultRows };
+    }
   }
 
   return steps;
@@ -1625,14 +1837,30 @@ function renderTimeline(pos) {
     if (si > 0) html += '<div class="df-arrow">↓</div>';
     html += `<div class="df-card df-${s.step}">`;
     html += `<div class="df-card-header"><span class="df-step-num">${si + 1}</span><span>${escapeHTML(s.label)}</span>`;
-    if (s.before && s.after) html += `<span class="df-count">${s.before.total || '?'} → ${s.after.total} řádků</span>`;
+    if (s.step === 'setop' && s.setopRight) html += `<span class="df-count">${s.before.total} + ${s.setopRight.total} → ${s.after.total} řádků</span>`;
+    else if (s.before && s.after) html += `<span class="df-count">${s.before.total || '?'} → ${s.after.total} řádků</span>`;
     else if (s.after) html += `<span class="df-count">${s.after.total} řádků</span>`;
     html += '</div>';
 
     const ac = s.activeCols || new Set();
     const afterAc = (s.step === 'select') ? new Set() : ac;
 
-    if (s.filter && s.before && s.after) {
+    if (s.step === 'case' && s.caseDetails) {
+      html += '<div class="df-card-body df-single">';
+      html += renderCaseTable(s.caseDetails, s.caseExprs);
+      html += '</div>';
+    } else if (s.step === 'setop' && s.setopRight) {
+      html += '<div class="df-card-body">';
+      html += '<div class="df-half"><div class="df-half-label">Levá část (' + s.before.total + ')</div>';
+      html += renderMiniTable(s.before.columns, s.before.rows, s.before.total);
+      html += '</div>';
+      html += '<div class="df-half"><div class="df-half-label">Pravá část (' + s.setopRight.total + ')</div>';
+      html += renderMiniTable(s.setopRight.columns, s.setopRight.rows, s.setopRight.total);
+      html += '</div></div>';
+      html += '<div class="df-card-body df-single"><div class="df-half-label">Výsledek (' + s.after.total + ')</div>';
+      html += renderMiniTable(s.after.columns, s.after.rows, s.after.total);
+      html += '</div>';
+    } else if (s.filter && s.before && s.after) {
       html += '<div class="df-card-body">';
       html += '<div class="df-half"><div class="df-half-label">Vstup (' + (s.before.total) + ')</div>';
       html += renderMixTable(s.before.columns, s.before.rows, ac);
@@ -1796,6 +2024,49 @@ function renderMiniTable(columns, rows, total, newCols, activeCols) {
   if (total > rows.length) h += `<tr><td colspan="${cols.length}" class="df-more">… a dalších ${total - rows.length}</td></tr>`;
   h += '</tbody></table>';
   return h;
+}
+
+function renderCaseTable(details, caseExprs) {
+  if (!details || details.length === 0) return '';
+  let h = '<table class="df-case-table"><thead><tr>';
+  h += '<th>Hodnota</th><th>Splněná podmínka</th><th>→ Výsledek</th>';
+  h += '</tr></thead><tbody>';
+  for (const d of details) {
+    const cls = d.match ? 'df-case-match' : 'df-case-match';
+    const inputStr = d.inputVal === null ? 'NULL' : String(d.inputVal);
+    let condStr;
+    if (d.isElse) {
+      condStr = 'ELSE (žádný WHEN nesplněn)';
+    } else if (d.when && d.when.when) {
+      condStr = 'WHEN ' + describeExpr(d.when.when);
+    } else {
+      condStr = 'WHEN #' + (d.whenIdx + 1);
+    }
+    const resStr = d.result === null ? 'NULL' : String(d.result);
+    h += `<tr class="${cls}">`;
+    h += `<td>${escapeHTML(inputStr)}</td>`;
+    h += `<td>${escapeHTML(condStr)}</td>`;
+    h += `<td class="df-case-result">${escapeHTML(resStr)}</td>`;
+    h += '</tr>';
+  }
+  h += '</tbody></table>';
+  return h;
+}
+
+function describeExpr(expr) {
+  if (!expr) return '?';
+  if (expr.type === 'literal') return expr.value === null ? 'NULL' : String(expr.value);
+  if (expr.type === 'column') return (expr.table ? expr.table + '.' : '') + expr.name;
+  if (expr.type === 'binary') {
+    const l = describeExpr(expr.left), r = describeExpr(expr.right);
+    return l + ' ' + expr.op + ' ' + r;
+  }
+  if (expr.type === 'is_null') return describeExpr(expr.expr) + (expr.not ? ' IS NOT NULL' : ' IS NULL');
+  if (expr.type === 'between') return describeExpr(expr.expr) + ' BETWEEN ' + describeExpr(expr.low) + ' AND ' + describeExpr(expr.high);
+  if (expr.type === 'like') return describeExpr(expr.expr) + (expr.not ? ' NOT LIKE ' : ' LIKE ') + "'" + expr.pattern + "'";
+  if (expr.type === 'agg') return expr.fn + '(' + (expr.arg ? describeExpr(expr.arg) : '*') + ')';
+  if (expr.type === 'func') return expr.fn + '(' + expr.args.map(describeExpr).join(', ') + ')';
+  return '…';
 }
 
 function renderMixTable(columns, mixRows, activeCols) {
