@@ -354,6 +354,38 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-s
   transition: background 0.15s; z-index: 10;
 }
 .resize-v:hover, .resize-v.dragging { background: var(--blue); }
+
+/* ===== MOBILE ===== */
+@media (max-width: 768px) {
+  body { overflow: auto; }
+  .app { height: auto; min-height: 100vh; }
+  .main-content { flex-direction: column; overflow: visible; }
+  .col-left, .col-right { display: contents; }
+  .resize-v, .resize-h { display: none !important; }
+
+  /* Pořadí: Editor → Výsledky → Průběh → Vizualizace */
+  .editor-section { order: 1; flex: none !important; height: 200px; border-bottom: 1px solid var(--border); }
+  .results-section { order: 2; flex: none !important; border-bottom: 1px solid var(--border); }
+  .dataflow-section { order: 3; flex: none !important; border-bottom: 1px solid var(--border); }
+  .pipeline-section { order: 4; flex: none !important; height: 280px; }
+
+  .results-wrap { max-height: 50vh; }
+  .dataflow-wrap { max-height: 50vh; }
+  .pipeline-wrap { overflow: auto; }
+  .pipeline-tables { gap: 16px; justify-content: flex-start; }
+
+  /* Toolbar na menší obrazovce */
+  .header { padding: 6px 12px; }
+  .header h1 { font-size: 13px; }
+  .editor-toolbar { flex-wrap: wrap; gap: 6px; padding: 6px 10px; }
+  .editor-toolbar-right { flex-wrap: wrap; }
+  .btn { font-size: 10px; padding: 4px 8px; }
+  .btn kbd { display: none; }
+  .examples-menu { right: 0; min-width: min(380px, calc(100vw - 24px)); }
+
+  /* Flow bar wrap */
+  .flow-bar { padding: 8px 12px; }
+}
 </style>
 </head>
 <body>
