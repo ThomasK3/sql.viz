@@ -372,8 +372,8 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-s
   /* Výsledky omezené, průběh + vizualizace rostou podle obsahu */
   .results-wrap { max-height: 50vh; }
   .dataflow-wrap { max-height: none; overflow: visible; }
-  .pipeline-wrap { overflow: visible; }
-  .pipeline-tables { flex-direction: column; align-items: stretch; gap: 16px; }
+  .pipeline-wrap { overflow: visible; padding: 12px; }
+  .pipeline-tables { flex-direction: column; align-items: stretch; gap: 24px; }
   .p-table { max-width: none; min-width: 0; }
 
   /* Toolbar na menší obrazovce */
@@ -384,8 +384,14 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-s
   .btn { font-size: 10px; padding: 4px 8px; }
   .btn kbd { display: none; }
 
-  /* Příklady menu — zarovnat doprava, nepřetékat doleva */
-  .examples-menu { right: 0; left: auto; min-width: min(340px, calc(100vw - 24px)); max-width: calc(100vw - 12px); }
+  /* Příklady menu — fixní overlay přes celou šířku */
+  .examples-dropdown { position: static; }
+  .examples-menu {
+    position: fixed; top: auto; bottom: 0; left: 8px; right: 8px;
+    min-width: 0; max-height: 60vh; border-radius: 12px 12px 0 0;
+    box-shadow: 0 -8px 32px rgba(0,0,0,0.6);
+  }
+  .example-sql { white-space: normal; overflow: visible; max-width: none; font-size: 9px; }
 
   /* Zabránit zoomu při focusu na textarea (iOS) */
   .editor-textarea { font-size: 16px; }
@@ -395,8 +401,9 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-s
   /* Flow bar wrap */
   .flow-bar { padding: 8px 12px; flex-wrap: wrap; }
 
-  /* Pipeline SVG skrýt na mobilu (čáry nedávají smysl vertikálně) */
-  .pipeline-svg { display: none; }
+  /* Pipeline SVG — vertikální čáry mezi tabulkami */
+  .pipeline-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+  .pipeline-tables { position: relative; }
 }
 </style>
 </head>
@@ -938,6 +945,7 @@ function drawJoinLines(links) {
   svg.innerHTML = '';
   const container = document.getElementById('pipelineTables');
   const cRect = container.getBoundingClientRect();
+  const isMobile = window.innerWidth <= 768;
 
   for (const link of links) {
     const leftEl = document.getElementById('pcol-' + link.leftTable + '-' + link.leftCol);
@@ -963,7 +971,29 @@ function drawJoinLines(links) {
       continue;
     }
 
-    // Determine which element is visually on the left vs right
+    if (isMobile) {
+      // Vertical layout: draw line from right edge of top column to right edge of bottom column
+      const topEl = lRect.top <= rRect.top ? lRect : rRect;
+      const botEl = lRect.top <= rRect.top ? rRect : lRect;
+      const x1 = topEl.right - cRect.left - 12;
+      const y1 = topEl.top + topEl.height/2 - cRect.top;
+      const x2 = botEl.right - cRect.left - 12;
+      const y2 = botEl.top + botEl.height/2 - cRect.top;
+      const midY = (y1 + y2) / 2;
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', `M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}`);
+      path.setAttribute('class', 'join-line join-line-anim');
+      svg.appendChild(path);
+      for (const [x, y] of [[x1, y1], [x2, y2]]) {
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('cx', x); dot.setAttribute('cy', y);
+        dot.setAttribute('class', 'join-dot'); dot.setAttribute('r', '4');
+        svg.appendChild(dot);
+      }
+      continue;
+    }
+
+    // Desktop: horizontal layout
     const lCenter = lRect.left + lRect.width / 2;
     const rCenter = rRect.left + rRect.width / 2;
     let x1, y1, x2, y2;
