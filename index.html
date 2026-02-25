@@ -364,15 +364,17 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-s
   .resize-v, .resize-h { display: none !important; }
 
   /* Pořadí: Editor → Výsledky → Průběh → Vizualizace */
-  .editor-section { order: 1; flex: none !important; height: 200px; border-bottom: 1px solid var(--border); }
-  .results-section { order: 2; flex: none !important; border-bottom: 1px solid var(--border); }
-  .dataflow-section { order: 3; flex: none !important; border-bottom: 1px solid var(--border); }
-  .pipeline-section { order: 4; flex: none !important; height: 280px; }
+  .editor-section { order: 1; flex: none !important; height: 200px; border-bottom: 2px solid var(--border2); }
+  .results-section { order: 2; flex: none !important; border-bottom: 2px solid var(--border2); }
+  .dataflow-section { order: 3; flex: none !important; border-bottom: 2px solid var(--border2); }
+  .pipeline-section { order: 4; flex: none !important; }
 
+  /* Výsledky omezené, průběh + vizualizace rostou podle obsahu */
   .results-wrap { max-height: 50vh; }
-  .dataflow-wrap { max-height: 50vh; }
-  .pipeline-wrap { overflow: auto; }
-  .pipeline-tables { gap: 16px; justify-content: flex-start; }
+  .dataflow-wrap { max-height: none; overflow: visible; }
+  .pipeline-wrap { overflow: visible; }
+  .pipeline-tables { flex-direction: column; align-items: stretch; gap: 16px; }
+  .p-table { max-width: none; min-width: 0; }
 
   /* Toolbar na menší obrazovce */
   .header { padding: 6px 12px; }
@@ -381,10 +383,20 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-s
   .editor-toolbar-right { flex-wrap: wrap; }
   .btn { font-size: 10px; padding: 4px 8px; }
   .btn kbd { display: none; }
-  .examples-menu { right: 0; min-width: min(380px, calc(100vw - 24px)); }
+
+  /* Příklady menu — zarovnat doprava, nepřetékat doleva */
+  .examples-menu { right: 0; left: auto; min-width: min(340px, calc(100vw - 24px)); max-width: calc(100vw - 12px); }
+
+  /* Zabránit zoomu při focusu na textarea (iOS) */
+  .editor-textarea { font-size: 16px; }
+  .editor-highlight { font-size: 16px; }
+  .editor-line-numbers { font-size: 16px; }
 
   /* Flow bar wrap */
-  .flow-bar { padding: 8px 12px; }
+  .flow-bar { padding: 8px 12px; flex-wrap: wrap; }
+
+  /* Pipeline SVG skrýt na mobilu (čáry nedávají smysl vertikálně) */
+  .pipeline-svg { display: none; }
 }
 </style>
 </head>
