@@ -1,0 +1,169 @@
+4.1 Klausule SELECT
+
+Základní příklady:
+1. Zjistěte, zda obsah všech tří tabulek koresponduje s opisem tabulek v kapitole 2.
+2. Vypište jména a funkce všech zaměstnanců.
+3. Jaké se vyskytují tituly u zaměstnanců (vypište tak, aby se tituly ve výpisu neopakovaly).
+4. Vypište pro každého zaměstnance stávající výši platu a výši platu v případě 20% valorizace. Vypočtený sloupec pojmenujte „Valorizovaný plat“.
+5. Vypište obsah tabulky zaměstnanců tak, aby měl následující formu: „Pan TITUL JMENO pracuje v oddělení č. CIS_ODD“
+
+Doplňující příklady:
+6. Popisy všech uložených úkolů.
+7. V jakých možných funkcích pracují zaměstnanci dané firmy (vypište tak, aby se funkce ve výpisu neopakovaly).
+8. Pro všechny zaměstnance vypište výši denní mzdy (počítejte s 22 pracovními dny).
+9. Výši ročního platu každého ze zaměstnanců, v případě, že dostane 13. plat ve výši 5000,- Kč.
+
+4.2 Klausule WHERE
+
+Základní příklady:
+10. Popisy úkolů, které byly přiděleny pracovníkovi č.1.
+11. V kterém oddělení (číslo) a jako co (funkce) pracuje pracovník se jménem STRNAD.
+12. Jména a platy zaměstnanců, kteří mají titul.
+13. Jména a platy zaměstnanců, kteří nemají titul.
+14. Jakou funkci zastávají zaměstnanci s příjmením končícím na „OVA“.
+15. Jména zaměstnanců z oddělení 2,4,6,8,10.
+
+Doplňující příklady:
+16. Jména zaměstnanců ze 3. oddělení s platem nad 6000,-.
+17. Přehled všech zaměstnanců, kteří nezastávají funkci BOSS.
+18. Jména <zaměstnanců s titulem ‘ING‘ ze 2. a nebo 6. oddělení.
+19. Jména a funkce zaměstnanců s platem v rozmezí 9000 až 12000,- Kč.
+20. Čísla pracovníků, kterým byl přidělen nějaký úkol související s „programem“.
+21. Jména zaměstnanců, jejichž roční plat bude po 10% valorizaci vyšší než 90000,-.
+
+4.3 JOIN vs. vnořené dotazy
+
+Základní příklady:
+22. Pro každého zaměstnance název oddělení, ve kterém pracuje.
+23. Jména zaměstnanců, kteří mají uložený nějaký úkol.
+24. Pro každý úkol jméno zaměstnance, kterému byl uložen, včetně čísla oddělení, ve kterém tento zaměstnanec pracuje.
+25. Pro každé oddělení jméno jeho vedoucího (šéfa).
+26. Pro každého zaměstnance popisy úkolů, které mu byly zadány.
+27. Pro každé oddělení (název) vypište popisy úkolů, které byly uloženy jeho zaměstnancům.
+
+Doplňující příklady:
+28. Pro každý úkol název oddělení, jehož zaměstnanci byl zadán.
+29. Pro každý uložený úkol jméno zaměstnance, jemuž byl uložen a název oddělení, ve kterém zaměstnanec pracuje.
+30. Názvy oddělení, do kterých byl přidělen nějaký úkol.
+31. Popisy úkolů, které byly přiděleny zaměstnancům s titulem.
+32. Jména zaměstnanců z oddělení PROGRAMOVANI, kterým byl přidělen nějaký úkol.
+33. Jméno vedoucího oddělení PROVOZ POCITACE.
+
+4.4 Klausule ORDER BY
+
+Základní příklady:
+34. Zaměstnanců seřazených abecedně podle jména.
+35. Zaměstnanců (osobní číslo, jméno, titul) seřazených dle titulů.
+36. Zaměstnanců (číslo oddělení, plat, jméno) seřazených podle oddělení vzestupně a v rámci oddělení dle platu sestupně.
+
+Doplňující příklady:
+37. Zaměstnanců (jméno, plat po 10% valorizaci) z 3. oddělení seřazený podle valorizovaného platu sestupně.
+38. Úkolů (číslo úkolu, popis, jméno zaměstnance) seřazený dle názvů oddělení, do kterých byly přiděleny.
+
+4.5 Agregační funkce
+
+Základní příklady:
+39. Maximální a minimální výši platu.
+40. Kolik zaměstnanců vykonává funkci BOSS a jaký je minimální plat v této funkci.
+41. Průměrný měsíční plat na jednoho zaměstnance.
+42. Počet oddělení (zjistit z tabulky oddělení i z tabulky zaměstnanců).
+43. Kolik zaměstnanců má nějaký titul.
+44. Kolik je zaměstnanců s příjmením začínajícím na písmeno „K“.
+
+Doplňující příklady:
+45. Maximální plat ve 3. oddělení.
+46. Celkový počet zaměstnanců a celkovou částku vyplácenou na platech měsíčně a ročně.
+47. Počet zaměstnanců ve 2. oddělení a roční částku jim vyplácenou po 10% valorizaci platů.
+48. Počet programátorů ve 3. oddělení.
+49. Nejnižší plat v oddělení Projekce.
+
+4.6 GROUP BY a agregační funkce
+
+Základní příklady:
+50. Pro každé oddělení (číslo) počet zaměstnanců.
+51. Pro každé oddělení (číslo) průměrný měsíční a roční plat.
+52. Pro každé oddělení (číslo a název) počet inženýrů.
+53. Pro každé oddělení (číslo a název) počet zaměstnanců bez titulu.
+54. Pro každé oddělení (číslo) počet zaměstnanců vykonávajících jednotlivé funkce.
+
+Doplňující příklady:
+55. Pro každé oddělení (číslo, název) maximální plat (seřadit sestupně).
+56. Průměrné platy v jednotlivých funkcích (seřadit vzestupně).
+57. Pro každé oddělení (číslo) počet zaměstnanců s titulem, kteří mají plat pod 12000,-.
+58. Pro každé oddělení (číslo) počet různých funkcí.
+59. Průměrné platy pro jednotlivá oddělení (číslo, název, průměrný plat).
+60. Jména zaměstnanců s počtem přidělených úkolů (seřadit abecedně).
+61. Názvy oddělení s počtem přidělených úkolů.
+
+4.7 GROUP BY a HAVING
+
+Základní příklady:
+62. Čísla oddělení s více jak 5 zaměstnanci.
+63. Názvy oddělení, ve kterých jsou alespoň dva lidé s titulem.
+64. Které funkce vykonávají více jak tři zaměstnanci.
+65. Osobní čísla a jména zaměstnanců, kteří mají přidělené alespoň dva úkoly.
+
+Doplňující příklady:
+66. Oddělení, ve kterých se vyplácí měsíčně na platech přes 36000,-.
+67. Názvy oddělení, ve kterých je maximální plat menší než 12000,-.
+68. Které funkce vykonávají alespoň dva inženýři.
+
+4.8 Self JOIN
+
+Základní příklady:
+69. Jména zaměstnanců s názvem oddělení a jménem vedoucího oddělení.
+70. Jména <zaměstnanců se jménem bezprostředně nadřízeného.
+71. Jména zaměstnanců se jménem bezprostředně nadřízeného a jménem vedoucího oddělení.
+72. Počty inženýrů v jednotlivých odděleních (název oddělení, jméno vedoucího).
+
+Doplňující příklady:
+73. Jména <zaměstnanců s platem vyšším než má jejich bezprostředně nadřízený.
+74. Jména <zaměstnanců s platem stejným jako má zaměstnanec DLOUHY.
+75. Jména vedoucích jednotlivých oddělení (název) s počtem pracovníků v oddělení.
+76. Přehled funkcí vykonávaných v jednotlivých odděleních s počtem zaměstnanců.
+77. Jména vedoucích jednotlivých oddělení s počty pracovníků vykonávajícími jednotlivé funkce.
+78. Počty zaměstnanců bezprostředně podřízených jednotlivým zaměstnancům.
+79. Kteří vedoucí (číslo, jméno) šéfují oddělení s alespoň 4 zaměstnanci.
+
+4.9 Vnořené dotazy
+
+Základní příklady:
+80. Oddělení, které má stejný počet zaměstnanců jako oddělení PROJEKCE.
+81. Jména <zaměstnanců, jejichž plat je menší než plat průměrný.
+82. Číslo a jméno zaměstnance s nejmenším platem.
+83. Počet <zaměstnanců s platem menším než plat průměrný.
+84. Počet inženýrů, jejichž plat je menší než průměrný plat všech inženýrů.
+85. Ve kterém oddělení nepracuje žádný inženýr.
+
+Doplňující příklady:
+86. Seznam všech oddělení (číslo a název) a k nim počty zaměstnanců (včetně nulových).
+87. Oddělení (číslo a název), ve kterých nepracuje nikdo bez titulu.
+88. Oddělení (číslo a název), ve kterých pracuje více inženýrů než zaměstnanců bez titulu.
+89. Seznam všech zaměstnanců (osobní číslo a jméno) a k nim počet přidělených úkolů.
+
+4.10 Testovací dotazy bez rozlišení klausulí
+
+90. Čísla oddělení, ve kterých pracují nějací zaměstnanci.
+91. Čísla oddělení, ve kterých pracují inženýři (‘ING’).
+92. Čísla a názvy oddělení, ve kterých pracují inženýři (‘ING’).
+93. Čísla a názvy oddělení, ve kterých nepracuje žádný inženýr (‘ING’).
+94. Čísla <zaměstnanců, kteří mají podřízené.
+95. Čísla a jména zaměstnanců, kteří mají podřízené.
+96. Průměrný plat za všechny zaměstnance.
+97. Čísla a jména zaměstnanců, kteří mají plat větší, než je průměrný plat všech zaměstnanců.
+98. Čísla a jména zaměstnanců, kteří mají plat větší, než je průměrný plat v jejich oddělení.
+99. Čísla a jména zaměstnanců, kteří mají přidělený úkol.
+100. Čísla a jména zaměstnanců, kteří nemají přidělený žádný úkol.
+101. Čísla a popisy úkolů, které neřeší vedoucí oddělení.
+102. Pro každé oddělení počet zaměstnanců bez titulu a počet těch, kteří neřeší žádný úkol.
+103. Pro všechna oddělení počty zaměstnanců a počty těch, kteří mají přidělený úkol.
+104. Pro všechna oddělení počty zaměstnanců a počty řešených úkolů.
+
+
+
+PŘEDNÁŠKA-26.2.26
+SELECT pd.OS_CIS, pd.JMENO, pd.PLAT, nd.PLAT AS nadr_plat
+FROM ZAM pd 
+INNER JOIN ZAM nd ON pd.NADR = nd.OS_CIS
+WHERE pd.PLAT > nd.PLAT
+ORDER BY pd.OS_CIS;

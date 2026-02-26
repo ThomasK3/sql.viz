@@ -27,9 +27,12 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-s
 }
 .header h1 { font-size: 15px; font-weight: 700; }
 .header h1 span { color: var(--blue); }
+.app-body { display: flex; flex: 1; overflow: hidden; }
 .main-content { display: flex; flex: 1; overflow: hidden; }
 .col-left { width: 50%; min-width: 280px; display: flex; flex-direction: column; border-right: 1px solid var(--border); }
 .col-right { flex: 1; min-width: 280px; display: flex; flex-direction: column; position: relative; }
+
+.tasks-has-check { color: var(--orange); font-size: 10px; margin-left: 4px; }
 
 /* ===== EDITOR (compact, top-left) ===== */
 .editor-section { flex: 35; min-height: 60px; display: flex; flex-direction: column; overflow: visible; position: relative; z-index: 10; }
@@ -365,6 +368,188 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-s
 ::-webkit-scrollbar-thumb { background: var(--bg4); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border2); }
 
+/* ===== TASKS PANEL ===== */
+.btn-tasks { background: rgba(240,136,62,0.15); border-color: var(--orange); color: var(--orange); }
+.btn-tasks:hover { background: rgba(240,136,62,0.3); }
+.btn-tasks.active { background: var(--orange); color: var(--bg); }
+
+.tasks-overlay {
+  display: none; position: fixed; inset: 0; z-index: 900;
+  background: rgba(0,0,0,0.4);
+}
+.tasks-overlay.show { display: block; }
+
+.tasks-panel {
+  position: fixed; top: 0; right: -400px; width: 380px; height: 100vh;
+  background: var(--bg2); border-left: 2px solid var(--orange);
+  z-index: 901; display: flex; flex-direction: column;
+  transition: right 0.28s cubic-bezier(0.4,0,0.2,1);
+  box-shadow: -4px 0 24px rgba(0,0,0,0.5);
+}
+.tasks-panel.open { right: 0; }
+
+.tasks-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  background: var(--bg3);
+}
+.tasks-title { font-size: 13px; font-weight: 700; color: var(--orange); }
+.tasks-upload-btn {
+  padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border);
+  background: var(--bg4); color: var(--text2); font-size: 11px;
+  cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif;
+}
+.tasks-upload-btn:hover { background: var(--bg); color: var(--text); border-color: var(--border2); }
+.tasks-paste-btn {
+  padding: 4px 10px; border-radius: 5px; border: 1px solid var(--border);
+  background: var(--bg4); color: var(--text2); font-size: 11px;
+  cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif;
+}
+.tasks-paste-btn:hover { background: var(--bg); color: var(--text); border-color: var(--border2); }
+.tasks-close-btn {
+  background: none; border: none; color: var(--text3); cursor: pointer;
+  font-size: 16px; padding: 2px 6px; border-radius: 4px;
+}
+.tasks-close-btn:hover { color: var(--text); background: var(--bg4); }
+
+.tasks-pin-btn {
+  background: none; border: 1px solid var(--border); color: var(--text3);
+  cursor: pointer; font-size: 13px; padding: 2px 7px; border-radius: 4px;
+  transition: all 0.15s; font-family: inherit;
+}
+.tasks-pin-btn:hover { background: var(--bg4); color: var(--text); border-color: var(--border2); }
+.tasks-pin-btn.pinned { background: rgba(240,136,62,0.2); border-color: var(--orange); color: var(--orange); }
+
+/* Docked mode: panel sits inline to the right of main content */
+.app.tasks-docked .tasks-panel {
+  position: relative; right: auto; top: auto; height: 100%;
+  width: 320px; flex-shrink: 0;
+  box-shadow: none;
+  border-left: 2px solid var(--orange);
+  transition: none;
+}
+.app.tasks-docked .tasks-overlay { display: none !important; }
+.app.tasks-docked .main-content { margin-right: 0; flex: 1; min-width: 0; }
+
+/* Wrapper for docked layout */
+.app-body { display: flex; flex: 1; overflow: hidden; }
+
+/* Record bar */
+.tasks-record-bar {
+  padding: 8px 14px 10px; border-bottom: 1px solid var(--border);
+  background: rgba(240,136,62,0.05); flex-shrink: 0;
+}
+.tasks-record-task-label {
+  font-size: 10px; color: var(--text3); line-height: 1.5; display: block;
+}
+.tasks-record-task-label b { color: var(--orange); }
+.tasks-record-btn {
+  padding: 3px 9px; border-radius: 5px; border: 1px solid var(--border);
+  background: var(--bg4); color: var(--text2); font-size: 10px;
+  cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif;
+}
+.tasks-record-btn:hover { background: rgba(240,136,62,0.15); border-color: var(--orange); color: var(--orange); }
+.tasks-clear-btn:hover { background: rgba(255,123,114,0.15); border-color: var(--red); color: var(--red); }
+.tasks-solution-badge {
+  font-size: 10px; color: var(--yellow); background: rgba(210,153,34,0.1);
+  border: 1px solid rgba(210,153,34,0.3); border-radius: 4px;
+  padding: 2px 7px; display: inline-flex; align-items: center;
+}
+.app.tasks-docked .app-body { flex-direction: row; }
+
+.tasks-body { flex: 1; overflow-y: auto; padding: 8px 0; }
+.tasks-empty-state { padding: 40px 20px; text-align: center; }
+
+.tasks-chapter {
+  margin-bottom: 2px;
+}
+.tasks-chapter-header {
+  padding: 8px 14px 6px; font-size: 11px; font-weight: 700;
+  color: var(--orange); text-transform: uppercase; letter-spacing: 0.5px;
+  background: rgba(240,136,62,0.07); border-top: 1px solid rgba(240,136,62,0.2);
+  cursor: pointer; display: flex; align-items: center; gap: 6px;
+  user-select: none;
+}
+.tasks-chapter-header:hover { background: rgba(240,136,62,0.12); }
+.tasks-chapter-toggle { font-size: 9px; color: var(--text3); transition: transform 0.2s; }
+.tasks-chapter.collapsed .tasks-chapter-toggle { transform: rotate(-90deg); }
+.tasks-chapter-count { margin-left: auto; font-size: 10px; color: var(--text3); font-weight: 400; }
+.tasks-chapter.collapsed .tasks-task-list { display: none; }
+
+.tasks-task-list { padding: 2px 0; }
+
+.tasks-task {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 7px 14px; cursor: pointer; transition: background 0.12s;
+  border-left: 3px solid transparent; position: relative;
+}
+.tasks-task:hover { background: var(--bg3); }
+.tasks-task.active { background: rgba(88,166,255,0.07); border-left-color: var(--blue); }
+.tasks-task.solved { border-left-color: var(--green); }
+.tasks-task.solved .tasks-task-num { color: var(--green); }
+
+.tasks-task-num {
+  font-size: 11px; font-weight: 700; font-family: 'JetBrains Mono', monospace;
+  color: var(--text3); min-width: 24px; flex-shrink: 0; padding-top: 1px;
+}
+.tasks-task-text {
+  font-size: 11px; color: var(--text2); line-height: 1.5; flex: 1;
+}
+.tasks-task.active .tasks-task-text { color: var(--text); }
+.tasks-task-check {
+  width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border2);
+  flex-shrink: 0; margin-top: 1px; display: flex; align-items: center;
+  justify-content: center; font-size: 9px; transition: all 0.2s;
+}
+.tasks-task.solved .tasks-task-check {
+  background: var(--green); border-color: var(--green); color: var(--bg);
+}
+
+.tasks-footer {
+  padding: 10px 14px; border-top: 1px solid var(--border);
+  background: var(--bg3); flex-shrink: 0;
+}
+.tasks-progress-label { font-size: 10px; color: var(--text3); display: block; margin-bottom: 5px; }
+.tasks-progress-bar { height: 4px; background: var(--bg4); border-radius: 2px; overflow: hidden; }
+.tasks-progress-fill { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.4s ease; width: 0%; }
+
+/* PASTE MODAL */
+.paste-modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center;
+}
+.paste-modal {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+  width: 520px; max-width: 95vw; display: flex; flex-direction: column;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+}
+.paste-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+}
+.paste-modal-textarea {
+  flex: 1; min-height: 280px; padding: 12px 14px;
+  font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  background: var(--bg); color: var(--text); border: none; outline: none;
+  resize: vertical; line-height: 1.6;
+}
+.paste-modal-footer {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 10px 14px; border-top: 1px solid var(--border);
+}
+
+/* ===== JOIN VENN DIAGRAM ===== */
+.df-join-venn {
+  padding: 8px 12px 4px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.df-join-venn-svg { width: 140px; height: 70px; }
+.df-join-type-badge {
+  font-size: 10px; font-weight: 700; font-family: 'JetBrains Mono', monospace;
+  padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px;
+  background: rgba(188,140,255,0.15); color: var(--purple);
+}
+.df-join-desc { font-size: 10px; color: var(--text3); text-align: center; line-height: 1.4; }
+
 /* ===== RESIZE ===== */
 .resize-h {
   height: 4px; cursor: row-resize; background: transparent; flex-shrink: 0;
@@ -541,9 +726,11 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-s
     <div style="display:flex;align-items:center;gap:8px">
       <span style="font-size:11px;color:var(--text3)">4IT218 — Oracle SQL</span>
       <button class="btn btn-dict" id="btnDict" onclick="toggleDict()">Slovník</button>
+      <button class="btn btn-tasks" id="btnTasks" onclick="toggleTasksPanel()">📋 Úkoly</button>
     </div>
   </div>
 
+  <div class="app-body" id="appBody">
   <div class="main-content">
     <!-- LEVÝ SLOUPEC -->
     <div class="col-left" id="colLeft">
@@ -636,6 +823,55 @@ body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-s
           <div class="results-empty" id="resultsPlaceholder">Napiš SQL dotaz a stiskni <kbd>Ctrl+Enter</kbd> pro spuštění</div>
         </div>
       </div>
+    </div>
+  </div>
+  <!-- tasks panel docked slot -->
+  </div><!-- /app-body -->
+</div><!-- /app -->
+
+<!-- TASKS PANEL (overlay by default, moves inside app-body when docked) -->
+<div class="tasks-overlay" id="tasksOverlay" onclick="tasksOverlayClick()"></div>
+<div class="tasks-panel" id="tasksPanel">
+  <div class="tasks-header">
+    <span class="tasks-title">📋 Cvičení</span>
+    <div style="display:flex;gap:5px;align-items:center">
+      <label class="tasks-upload-btn" title="Nahrát soubor">
+        <input type="file" id="tasksFileInput" accept=".txt,.ini,.md" style="display:none" onchange="handleTasksFile(event)">
+        📂 Nahrát
+      </label>
+      <button class="tasks-paste-btn" onclick="showTasksPasteModal()">📋 Vložit text</button>
+      <button class="tasks-pin-btn" id="tasksPinBtn" onclick="toggleTasksDocked()" title="Přichytit panel (panel zůstane otevřený vedle editoru)">📌</button>
+      <button class="tasks-close-btn" onclick="toggleTasksPanel()">✕</button>
+    </div>
+  </div>
+  <div class="tasks-body" id="tasksBody">
+    <div class="tasks-empty-state">
+      <div style="font-size:32px;margin-bottom:12px">📄</div>
+      <div style="font-weight:600;margin-bottom:6px;color:var(--text2)">Žádná cvičení</div>
+      <div style="font-size:11px;color:var(--text3);line-height:1.6">Nahraj textový soubor nebo vlož text se cvičeními.<br>Formát: číslo + tečka + text úkolu.<br>Kapitoly: "4.1 Název kapitoly"</div>
+    </div>
+  </div>
+  <div class="tasks-footer" id="tasksFooter" style="display:none">
+    <span class="tasks-progress-label" id="tasksProgressLabel">0 / 0 splněno</span>
+    <div class="tasks-progress-bar"><div class="tasks-progress-fill" id="tasksProgressFill"></div></div>
+  </div>
+</div>
+
+<!-- PASTE MODAL -->
+<div class="paste-modal-overlay" id="pasteModalOverlay" style="display:none">
+  <div class="paste-modal">
+    <div class="paste-modal-header">
+      <span style="font-weight:700;font-size:13px">Vložit text cvičení</span>
+      <button onclick="hideTasksPasteModal()" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer">✕</button>
+    </div>
+    <div style="padding:8px 14px 0;font-size:11px;color:var(--text3);line-height:1.6;border-bottom:1px solid var(--border);padding-bottom:8px;">
+      Vlož text cvičení. Každý úkol na novém řádku: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">1. Text úkolu</code><br>
+      Kapitoly: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">4.1 Název kapitoly</code> — volitelně přidej vzorové SQL za svislítkem: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">1. Text | SELECT jmeno FROM zam</code>
+    </div>
+    <textarea id="pasteModalText" class="paste-modal-textarea" placeholder="Sem vlož text cvičení...&#10;&#10;Příklad:&#10;4.1  Klausule SELECT&#10;&#10;1.  Vypište jména zaměstnanců. | SELECT jmeno FROM zam&#10;2.  Jaké tituly se vyskytují? | SELECT DISTINCT titul FROM zam WHERE titul IS NOT NULL"></textarea>
+    <div class="paste-modal-footer">
+      <button class="btn" onclick="hideTasksPasteModal()">Zrušit</button>
+      <button class="btn btn-primary" onclick="loadTasksFromPaste()">Načíst</button>
     </div>
   </div>
 </div>
@@ -893,7 +1129,7 @@ function parseExpr(tokens, pos, sw) { return parseOr(tokens,pos,sw); }
 function parseOr(t,p,s){let l=parseAnd(t,p,s);p=l.pos;while(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='OR'){p++;const r=parseAnd(t,p,s);l={expr:{type:'binary',op:'OR',left:l.expr,right:r.expr},pos:r.pos};p=r.pos;}return l;}
 function parseAnd(t,p,s){let l=parseNot(t,p,s);p=l.pos;while(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='AND'){p++;const r=parseNot(t,p,s);l={expr:{type:'binary',op:'AND',left:l.expr,right:r.expr},pos:r.pos};p=r.pos;}return l;}
 function parseNot(t,p,s){if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='NOT'){p++;const i=parseNot(t,p,s);return{expr:{type:'unary',op:'NOT',operand:i.expr},pos:i.pos};}return parseComparison(t,p,s);}
-function parseComparison(t,p,s){let l=parseConcat(t,p,s);p=l.pos;if(p>=t.length)return l;if(t[p].type==='word'&&t[p].value.toUpperCase()==='IS'){p++;let n=false;if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='NOT'){n=true;p++;}if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='NULL'){p++;return{expr:{type:'is_null',expr:l.expr,not:n},pos:p};}}if(t[p].type==='word'&&t[p].value.toUpperCase()==='IN'){p++;if(p<t.length&&t[p].type==='paren_open'){p++;const v=[];while(p<t.length&&t[p].type!=='paren_close'){if(t[p].type==='comma'){p++;continue;}const x=parseExpr(t,p,s);v.push(x.expr);p=x.pos;}if(p<t.length)p++;return{expr:{type:'in',expr:l.expr,values:v},pos:p};}}if(t[p].type==='word'&&t[p].value.toUpperCase()==='NOT'&&p+1<t.length&&t[p+1].type==='word'&&t[p+1].value.toUpperCase()==='IN'){p+=2;if(p<t.length&&t[p].type==='paren_open'){p++;const v=[];while(p<t.length&&t[p].type!=='paren_close'){if(t[p].type==='comma'){p++;continue;}const x=parseExpr(t,p,s);v.push(x.expr);p=x.pos;}if(p<t.length)p++;return{expr:{type:'unary',op:'NOT',operand:{type:'in',expr:l.expr,values:v}},pos:p};}}if(t[p].type==='word'&&t[p].value.toUpperCase()==='BETWEEN'){p++;const lo=parseConcat(t,p,s);p=lo.pos;if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='AND')p++;const hi=parseConcat(t,p,s);p=hi.pos;return{expr:{type:'between',expr:l.expr,low:lo.expr,high:hi.expr},pos:p};}if(t[p].type==='word'&&t[p].value.toUpperCase()==='LIKE'){p++;const pa=parseConcat(t,p,s);return{expr:{type:'like',expr:l.expr,pattern:pa.expr},pos:pa.pos};}if(t[p].type==='word'&&t[p].value.toUpperCase()==='NOT'&&p+1<t.length&&t[p+1].type==='word'&&t[p+1].value.toUpperCase()==='LIKE'){p+=2;const pa=parseConcat(t,p,s);return{expr:{type:'unary',op:'NOT',operand:{type:'like',expr:l.expr,pattern:pa.expr}},pos:pa.pos};}if(t[p].type==='op'){const op=t[p].value;if(['=','!=','<>','<','>','<=','>='].includes(op)){p++;const r=parseConcat(t,p,s);return{expr:{type:'binary',op:op==='<>'?'!=':op,left:l.expr,right:r.expr},pos:r.pos};}}return l;}
+function parseComparison(t,p,s){let l=parseConcat(t,p,s);p=l.pos;if(p>=t.length)return l;if(t[p].type==='word'&&t[p].value.toUpperCase()==='IS'){p++;let n=false;if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='NOT'){n=true;p++;}if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='NULL'){p++;return{expr:{type:'is_null',expr:l.expr,not:n},pos:p};}}if(t[p].type==='word'&&t[p].value.toUpperCase()==='IN'){p++;if(p<t.length&&t[p].type==='paren_open'){const p2=p+1+(t[p+1]&&t[p+1].type==='ws'?1:0);const isSubq=p+1<t.length&&t[p+1].type==='word'&&t[p+1].value.toUpperCase()==='SELECT';if(isSubq){p++;const sq=parseSelect(t,p);let d=1;while(p<t.length&&d>0){if(t[p].type==='paren_open')d++;else if(t[p].type==='paren_close'){d--;if(d===0){p++;break;}}p++;}return{expr:{type:'in',expr:l.expr,values:[{type:'subquery',query:sq}]},pos:p};}else{p++;const v=[];while(p<t.length&&t[p].type!=='paren_close'){if(t[p].type==='comma'){p++;continue;}const x=parseExpr(t,p,s);v.push(x.expr);p=x.pos;}if(p<t.length)p++;return{expr:{type:'in',expr:l.expr,values:v},pos:p};}}}if(t[p].type==='word'&&t[p].value.toUpperCase()==='NOT'&&p+1<t.length&&t[p+1].type==='word'&&t[p+1].value.toUpperCase()==='IN'){p+=2;if(p<t.length&&t[p].type==='paren_open'){const isSubq=p+1<t.length&&t[p+1].type==='word'&&t[p+1].value.toUpperCase()==='SELECT';if(isSubq){p++;const sq=parseSelect(t,p);let d=1;while(p<t.length&&d>0){if(t[p].type==='paren_open')d++;else if(t[p].type==='paren_close'){d--;if(d===0){p++;break;}}p++;}return{expr:{type:'unary',op:'NOT',operand:{type:'in',expr:l.expr,values:[{type:'subquery',query:sq}]}},pos:p};}else{p++;const v=[];while(p<t.length&&t[p].type!=='paren_close'){if(t[p].type==='comma'){p++;continue;}const x=parseExpr(t,p,s);v.push(x.expr);p=x.pos;}if(p<t.length)p++;return{expr:{type:'unary',op:'NOT',operand:{type:'in',expr:l.expr,values:v}},pos:p};}}}if(t[p].type==='word'&&t[p].value.toUpperCase()==='BETWEEN'){p++;const lo=parseConcat(t,p,s);p=lo.pos;if(p<t.length&&t[p].type==='word'&&t[p].value.toUpperCase()==='AND')p++;const hi=parseConcat(t,p,s);p=hi.pos;return{expr:{type:'between',expr:l.expr,low:lo.expr,high:hi.expr},pos:p};}if(t[p].type==='word'&&t[p].value.toUpperCase()==='LIKE'){p++;const pa=parseConcat(t,p,s);return{expr:{type:'like',expr:l.expr,pattern:pa.expr},pos:pa.pos};}if(t[p].type==='word'&&t[p].value.toUpperCase()==='NOT'&&p+1<t.length&&t[p+1].type==='word'&&t[p+1].value.toUpperCase()==='LIKE'){p+=2;const pa=parseConcat(t,p,s);return{expr:{type:'unary',op:'NOT',operand:{type:'like',expr:l.expr,pattern:pa.expr}},pos:pa.pos};}if(t[p].type==='op'){const op=t[p].value;if(['=','!=','<>','<','>','<=','>='].includes(op)){p++;const r=parseConcat(t,p,s);return{expr:{type:'binary',op:op==='<>'?'!=':op,left:l.expr,right:r.expr},pos:r.pos};}}return l;}
 function parseConcat(t,p,s){let l=parseAddSub(t,p,s);p=l.pos;while(p<t.length&&t[p].type==='concat'){p++;const r=parseAddSub(t,p,s);l={expr:{type:'binary',op:'||',left:l.expr,right:r.expr},pos:r.pos};p=r.pos;}return l;}
 function parseAddSub(t,p,s){let l=parseMulDiv(t,p,s);p=l.pos;while(p<t.length&&t[p].type==='op'&&(t[p].value==='+'||t[p].value==='-')){const op=t[p].value;p++;const r=parseMulDiv(t,p,s);l={expr:{type:'binary',op,left:l.expr,right:r.expr},pos:r.pos};p=r.pos;}return l;}
 function parseMulDiv(t,p,s){let l=parseAtom(t,p,s);p=l.pos;while(p<t.length&&((t[p].type==='op'&&t[p].value==='/')||t[p].type==='star')){const op=t[p].type==='star'?'*':t[p].value;p++;const r=parseAtom(t,p,s);l={expr:{type:'binary',op,left:l.expr,right:r.expr},pos:r.pos};p=r.pos;}return l;}
@@ -947,7 +1183,7 @@ function executeAST(query) {
 }
 function getTable(n){const u=n.toUpperCase();if(DB[u])return DB[u];throw new Error(`Tabulka "${n}" neexistuje. Dostupné: ${Object.keys(DB).join(', ')}`);}
 function valuesEqual(a,b){if(a===null||b===null)return false;return String(a).toUpperCase()===String(b).toUpperCase();}
-function evalExpr(e,r){if(!e)return null;switch(e.type){case'literal':return e.value;case'star':return null;case'column':{const n=e.name;if(n==='SYSDATE'){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}if(e.table){const q=e.table+'.'+n;if(q in r)return r[q];}if(n in r)return r[n];for(const k of Object.keys(r))if(k.toUpperCase()===n||k.toUpperCase()===(e.table?e.table+'.'+n:''))return r[k];return null;}case'binary':{if(e.op==='AND')return evalExpr(e.left,r)===true&&evalExpr(e.right,r)===true;if(e.op==='OR')return evalExpr(e.left,r)===true||evalExpr(e.right,r)===true;const lv=evalExpr(e.left,r),rv=evalExpr(e.right,r);if(e.op==='||'){return (lv===null?'':String(lv))+(rv===null?'':String(rv));}if(e.op==='+'){if(lv===null||rv===null)return null;return Number(lv)+Number(rv);}if(e.op==='-'){if(lv===null||rv===null)return null;return Number(lv)-Number(rv);}if(e.op==='*'){if(lv===null||rv===null)return null;return Number(lv)*Number(rv);}if(e.op==='/'){if(lv===null||rv===null)return null;if(Number(rv)===0)throw new Error('Dělení nulou');return Number(lv)/Number(rv);}if(lv===null||rv===null)return null;if(e.op==='=')return valuesEqual(lv,rv);if(e.op==='!=')return!valuesEqual(lv,rv);if(e.op==='<')return Number(lv)<Number(rv);if(e.op==='>')return Number(lv)>Number(rv);if(e.op==='<=')return Number(lv)<=Number(rv);if(e.op==='>=')return Number(lv)>=Number(rv);return null;}case'unary':{if(e.op==='NOT'){const v=evalExpr(e.operand,r);return v===null?null:!v;}if(e.op==='-'){const v=evalExpr(e.operand,r);return v===null?null:-Number(v);}return null;}case'is_null':{const v=evalExpr(e.expr,r);return e.not?v!==null:v===null;}case'like':{const v=evalExpr(e.expr,r),p=evalExpr(e.pattern,r);if(v===null||p===null)return null;const ps=String(p).toUpperCase(),vs=String(v).toUpperCase();let ri=0,pi=0;function ml(ri,pi){if(pi>=ps.length)return ri>=vs.length;if(ps[pi]==='%'){while(pi<ps.length&&ps[pi]==='%')pi++;if(pi>=ps.length)return true;for(let i=ri;i<=vs.length;i++)if(ml(i,pi))return true;return false;}if(ri>=vs.length)return false;if(ps[pi]==='_'||ps[pi]===vs[ri])return ml(ri+1,pi+1);return false;}return ml(0,0);}case'in':{const v=evalExpr(e.expr,r);if(v===null)return null;for(const val of e.values)if(valuesEqual(v,evalExpr(val,r)))return true;return false;}case'between':{const v=evalExpr(e.expr,r),lo=evalExpr(e.low,r),hi=evalExpr(e.high,r);if(v===null||lo===null||hi===null)return null;return Number(v)>=Number(lo)&&Number(v)<=Number(hi);}case'agg':{const g=r.__group__||[r],fn=e.fn;if(fn==='COUNT'){if(e.arg.type==='star')return g.length;let c=0;const sn=e.distinct?new Set():null;for(const x of g){const v=evalExpr(e.arg,x);if(v!==null){if(sn){const sv=String(v).toUpperCase();if(!sn.has(sv)){sn.add(sv);c++;}}else c++;}}return c;}const vs=[];const sn=e.distinct?new Set():null;for(const x of g){const v=evalExpr(e.arg,x);if(v!==null){if(sn){const sv=String(v).toUpperCase();if(!sn.has(sv)){sn.add(sv);vs.push(Number(v));}}else vs.push(Number(v));}}if(vs.length===0)return null;if(fn==='SUM')return vs.reduce((a,b)=>a+b,0);if(fn==='AVG')return vs.reduce((a,b)=>a+b,0)/vs.length;if(fn==='MAX')return Math.max(...vs);if(fn==='MIN')return Math.min(...vs);return null;}case'func':{const args=e.args.map(a=>evalExpr(a,r));const fn=e.fn;if(fn==='ROUND'){const v=args[0],n=args[1]??0;if(v===null)return null;const f=Math.pow(10,Number(n));return Math.round(Number(v)*f)/f;}if(fn==='TRUNC'){const v=args[0],n=args[1]??0;if(v===null)return null;const f=Math.pow(10,Number(n));return Math.trunc(Number(v)*f)/f;}if(fn==='UPPER')return args[0]===null?null:String(args[0]).toUpperCase();if(fn==='LOWER')return args[0]===null?null:String(args[0]).toLowerCase();if(fn==='LENGTH')return args[0]===null?null:String(args[0]).length;if(fn==='SUBSTR'){if(args[0]===null)return null;const str=String(args[0]),st=Number(args[1])-1;return args[2]!=null?str.substr(st,Number(args[2])):str.substr(st);}if(fn==='TRIM')return args[0]===null?null:String(args[0]).trim();if(fn==='ABS')return args[0]===null?null:Math.abs(Number(args[0]));if(fn==='NVL')return args[0]===null?args[1]:args[0];if(fn==='COALESCE'){for(const a of args)if(a!==null)return a;return null;}if(fn==='MOD')return args[0]===null||args[1]===null?null:Number(args[0])%Number(args[1]);if(fn==='CEIL')return args[0]===null?null:Math.ceil(Number(args[0]));if(fn==='FLOOR')return args[0]===null?null:Math.floor(Number(args[0]));if(fn==='REPLACE'){if(args[0]===null)return null;return String(args[0]).split(String(args[1])).join(String(args[2]??''));}if(fn==='LPAD'){if(args[0]===null)return null;return String(args[0]).padStart(Number(args[1]),String(args[2]??' '));}if(fn==='RPAD'){if(args[0]===null)return null;return String(args[0]).padEnd(Number(args[1]),String(args[2]??' '));}if(fn==='INSTR'){if(args[0]===null||args[1]===null)return null;const i=String(args[0]).indexOf(String(args[1]));return i===-1?0:i+1;}if(fn==='INITCAP'){if(args[0]===null)return null;return String(args[0]).toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());}if(fn==='TO_CHAR')return args[0]===null?null:String(args[0]);if(fn==='TO_NUMBER')return args[0]===null?null:Number(args[0]);if(fn==='GREATEST'){const vs=args.filter(a=>a!==null);return vs.length===0?null:Math.max(...vs.map(Number));}if(fn==='LEAST'){const vs=args.filter(a=>a!==null);return vs.length===0?null:Math.min(...vs.map(Number));}if(fn==='SIGN')return args[0]===null?null:Math.sign(Number(args[0]));if(fn==='POWER')return args[0]===null||args[1]===null?null:Math.pow(Number(args[0]),Number(args[1]));if(fn==='SQRT')return args[0]===null?null:Math.sqrt(Number(args[0]));if(fn==='DECODE'){const v=args[0];for(let i=1;i<args.length-1;i+=2){if(valuesEqual(v,args[i]))return args[i+1];}return args.length%2===0?args[args.length-1]:null;}if(fn==='NVL2'){return args[0]!==null?args[1]:args[2];}if(fn==='NULLIF'){return valuesEqual(args[0],args[1])?null:args[0];}return null;}case'case':{if(e.simple){const sv=evalExpr(e.simple,r);for(const w of e.whens){if(valuesEqual(sv,evalExpr(w.when,r)))return evalExpr(w.then,r);}return e.else?evalExpr(e.else,r):null;}for(const w of e.whens){if(evalExpr(w.when,r)===true)return evalExpr(w.then,r);}return e.else?evalExpr(e.else,r):null;}case'exists':{const res=executeAST(e.query);return res.rows.length>0;}case'subquery':{const res=executeAST(e.query);if(res.rows.length===0)return null;return res.rows[0][res.columns[0]];}}return null;}
+function evalExpr(e,r){if(!e)return null;switch(e.type){case'literal':return e.value;case'star':return null;case'column':{const n=e.name;if(n==='SYSDATE'){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}if(e.table){const q=e.table+'.'+n;if(q in r)return r[q];}if(n in r)return r[n];for(const k of Object.keys(r))if(k.toUpperCase()===n||k.toUpperCase()===(e.table?e.table+'.'+n:''))return r[k];return null;}case'binary':{if(e.op==='AND')return evalExpr(e.left,r)===true&&evalExpr(e.right,r)===true;if(e.op==='OR')return evalExpr(e.left,r)===true||evalExpr(e.right,r)===true;const lv=evalExpr(e.left,r),rv=evalExpr(e.right,r);if(e.op==='||'){return (lv===null?'':String(lv))+(rv===null?'':String(rv));}if(e.op==='+'){if(lv===null||rv===null)return null;return Number(lv)+Number(rv);}if(e.op==='-'){if(lv===null||rv===null)return null;return Number(lv)-Number(rv);}if(e.op==='*'){if(lv===null||rv===null)return null;return Number(lv)*Number(rv);}if(e.op==='/'){if(lv===null||rv===null)return null;if(Number(rv)===0)throw new Error('Dělení nulou');return Number(lv)/Number(rv);}if(lv===null||rv===null)return null;if(e.op==='=')return valuesEqual(lv,rv);if(e.op==='!=')return!valuesEqual(lv,rv);if(e.op==='<')return Number(lv)<Number(rv);if(e.op==='>')return Number(lv)>Number(rv);if(e.op==='<=')return Number(lv)<=Number(rv);if(e.op==='>=')return Number(lv)>=Number(rv);return null;}case'unary':{if(e.op==='NOT'){const v=evalExpr(e.operand,r);return v===null?null:!v;}if(e.op==='-'){const v=evalExpr(e.operand,r);return v===null?null:-Number(v);}return null;}case'is_null':{const v=evalExpr(e.expr,r);return e.not?v!==null:v===null;}case'like':{const v=evalExpr(e.expr,r),p=evalExpr(e.pattern,r);if(v===null||p===null)return null;const ps=String(p).toUpperCase(),vs=String(v).toUpperCase();let ri=0,pi=0;function ml(ri,pi){if(pi>=ps.length)return ri>=vs.length;if(ps[pi]==='%'){while(pi<ps.length&&ps[pi]==='%')pi++;if(pi>=ps.length)return true;for(let i=ri;i<=vs.length;i++)if(ml(i,pi))return true;return false;}if(ri>=vs.length)return false;if(ps[pi]==='_'||ps[pi]===vs[ri])return ml(ri+1,pi+1);return false;}return ml(0,0);}case'in':{const v=evalExpr(e.expr,r);if(v===null)return null;for(const val of e.values){if(val.type==='subquery'){const res=executeAST(val.query);const col=res.columns[0];for(const row of res.rows){if(valuesEqual(v,row[col]))return true;}}else{if(valuesEqual(v,evalExpr(val,r)))return true;}}return false;}case'between':{const v=evalExpr(e.expr,r),lo=evalExpr(e.low,r),hi=evalExpr(e.high,r);if(v===null||lo===null||hi===null)return null;return Number(v)>=Number(lo)&&Number(v)<=Number(hi);}case'agg':{const g=r.__group__||[r],fn=e.fn;if(fn==='COUNT'){if(e.arg.type==='star')return g.length;let c=0;const sn=e.distinct?new Set():null;for(const x of g){const v=evalExpr(e.arg,x);if(v!==null){if(sn){const sv=String(v).toUpperCase();if(!sn.has(sv)){sn.add(sv);c++;}}else c++;}}return c;}const vs=[];const sn=e.distinct?new Set():null;for(const x of g){const v=evalExpr(e.arg,x);if(v!==null){if(sn){const sv=String(v).toUpperCase();if(!sn.has(sv)){sn.add(sv);vs.push(Number(v));}}else vs.push(Number(v));}}if(vs.length===0)return null;if(fn==='SUM')return vs.reduce((a,b)=>a+b,0);if(fn==='AVG')return vs.reduce((a,b)=>a+b,0)/vs.length;if(fn==='MAX')return Math.max(...vs);if(fn==='MIN')return Math.min(...vs);return null;}case'func':{const args=e.args.map(a=>evalExpr(a,r));const fn=e.fn;if(fn==='ROUND'){const v=args[0],n=args[1]??0;if(v===null)return null;const f=Math.pow(10,Number(n));return Math.round(Number(v)*f)/f;}if(fn==='TRUNC'){const v=args[0],n=args[1]??0;if(v===null)return null;const f=Math.pow(10,Number(n));return Math.trunc(Number(v)*f)/f;}if(fn==='UPPER')return args[0]===null?null:String(args[0]).toUpperCase();if(fn==='LOWER')return args[0]===null?null:String(args[0]).toLowerCase();if(fn==='LENGTH')return args[0]===null?null:String(args[0]).length;if(fn==='SUBSTR'){if(args[0]===null)return null;const str=String(args[0]),st=Number(args[1])-1;return args[2]!=null?str.substr(st,Number(args[2])):str.substr(st);}if(fn==='TRIM')return args[0]===null?null:String(args[0]).trim();if(fn==='ABS')return args[0]===null?null:Math.abs(Number(args[0]));if(fn==='NVL')return args[0]===null?args[1]:args[0];if(fn==='COALESCE'){for(const a of args)if(a!==null)return a;return null;}if(fn==='MOD')return args[0]===null||args[1]===null?null:Number(args[0])%Number(args[1]);if(fn==='CEIL')return args[0]===null?null:Math.ceil(Number(args[0]));if(fn==='FLOOR')return args[0]===null?null:Math.floor(Number(args[0]));if(fn==='REPLACE'){if(args[0]===null)return null;return String(args[0]).split(String(args[1])).join(String(args[2]??''));}if(fn==='LPAD'){if(args[0]===null)return null;return String(args[0]).padStart(Number(args[1]),String(args[2]??' '));}if(fn==='RPAD'){if(args[0]===null)return null;return String(args[0]).padEnd(Number(args[1]),String(args[2]??' '));}if(fn==='INSTR'){if(args[0]===null||args[1]===null)return null;const i=String(args[0]).indexOf(String(args[1]));return i===-1?0:i+1;}if(fn==='INITCAP'){if(args[0]===null)return null;return String(args[0]).toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());}if(fn==='TO_CHAR')return args[0]===null?null:String(args[0]);if(fn==='TO_NUMBER')return args[0]===null?null:Number(args[0]);if(fn==='GREATEST'){const vs=args.filter(a=>a!==null);return vs.length===0?null:Math.max(...vs.map(Number));}if(fn==='LEAST'){const vs=args.filter(a=>a!==null);return vs.length===0?null:Math.min(...vs.map(Number));}if(fn==='SIGN')return args[0]===null?null:Math.sign(Number(args[0]));if(fn==='POWER')return args[0]===null||args[1]===null?null:Math.pow(Number(args[0]),Number(args[1]));if(fn==='SQRT')return args[0]===null?null:Math.sqrt(Number(args[0]));if(fn==='DECODE'){const v=args[0];for(let i=1;i<args.length-1;i+=2){if(valuesEqual(v,args[i]))return args[i+1];}return args.length%2===0?args[args.length-1]:null;}if(fn==='NVL2'){return args[0]!==null?args[1]:args[2];}if(fn==='NULLIF'){return valuesEqual(args[0],args[1])?null:args[0];}return null;}case'case':{if(e.simple){const sv=evalExpr(e.simple,r);for(const w of e.whens){if(valuesEqual(sv,evalExpr(w.when,r)))return evalExpr(w.then,r);}return e.else?evalExpr(e.else,r):null;}for(const w of e.whens){if(evalExpr(w.when,r)===true)return evalExpr(w.then,r);}return e.else?evalExpr(e.else,r):null;}case'exists':{const res=executeAST(e.query);return res.rows.length>0;}case'subquery':{const res=executeAST(e.query);if(res.rows.length===0)return null;return res.rows[0][res.columns[0]];}}return null;}
 function evalExprR(e,r,rc){if(e.type==='column'&&!e.table){for(const c of rc)if(c.toUpperCase()===e.name)return r[c];}return evalExpr(e,r);}
 function cmpVals(a,b){if(a===null&&b===null)return 0;if(a===null)return-1;if(b===null)return 1;if(typeof a==='number'&&typeof b==='number')return a-b;const na=Number(a),nb=Number(b);if(!isNaN(na)&&!isNaN(nb))return na-nb;return String(a).localeCompare(String(b));}
 function hasAgg(cols){for(const c of cols)if(c.type==='expr'&&exprHasAgg(c.expr))return true;return false;}
@@ -1440,8 +1676,13 @@ async function executeQuery() {
     const ast = parseSQL(sql);
     const result = executeAST(ast);
     const ms = Math.round(performance.now() - t0);
-    if (result.rows.length === 0) { wrap.innerHTML = '<div class="results-empty">Dotaz vrátil 0 řádků</div>'; status.innerHTML = `<span>0 řádků</span><span>${result.columns.length} sl.</span><span>${ms} ms</span>`; }
-    else {
+    if (result.rows.length === 0) {
+      let html = '<table class="results-table"><thead><tr>';
+      for (const c of result.columns) html += `<th>${escapeHTML(c)}</th>`;
+      html += '</tr></thead></table><div class="results-empty" style="border-top:none;padding-top:8px">Dotaz vrátil 0 řádků</div>';
+      wrap.innerHTML = html;
+      status.innerHTML = `<span>0 řádků</span><span>${result.columns.length} sl.</span><span>${ms} ms</span>`;
+    } else {
       let html = '<table class="results-table"><thead><tr>';
       for (const c of result.columns) html += `<th>${escapeHTML(c)}</th>`;
       html += '</tr></thead><tbody>';
@@ -1466,6 +1707,12 @@ async function executeQuery() {
     status.innerHTML = `<span style="color:var(--red)">Chyba</span><span>${ms} ms</span>`;
   }
   checkChallenge();
+  // Auto-check tasks if panel has solutions loaded
+  try {
+    const ast2 = parseSQL(sql);
+    const res2 = executeAST(ast2);
+    autoCheckTasksWithResult(res2);
+  } catch(e) {}
 }
 
 function executeInstant(sql) {
@@ -1482,7 +1729,13 @@ function executeInstant(sql) {
     const ast = parseSQL(sql);
     const result = executeAST(ast);
     const ms = Math.round(performance.now() - t0);
-    if (result.rows.length === 0) { wrap.innerHTML = '<div class="results-empty">Dotaz vrátil 0 řádků</div>'; status.innerHTML = `<span>0 řádků</span><span>${result.columns.length} sl.</span><span>${ms} ms</span>`; }
+    if (result.rows.length === 0) {
+      let html = '<table class="results-table"><thead><tr>';
+      for (const c of result.columns) html += `<th>${escapeHTML(c)}</th>`;
+      html += '</tr></thead></table><div class="results-empty" style="border-top:none;padding-top:8px">Dotaz vrátil 0 řádků</div>';
+      wrap.innerHTML = html;
+      status.innerHTML = `<span>0 řádků</span><span>${result.columns.length} sl.</span><span>${ms} ms</span>`;
+    }
     else {
       let html = '<table class="results-table"><thead><tr>';
       for (const c of result.columns) html += `<th>${escapeHTML(c)}</th>`;
@@ -1598,16 +1851,39 @@ function prevChallenge() { if (activeChallengeIdx > 0) loadChallenge(activeChall
 function nextChallenge() { if (activeChallengeIdx < CHALLENGES.length - 1) loadChallenge(activeChallengeIdx + 1); }
 
 function compareResults(exp, act) {
+  // exp can be either a result object {rows, columns} or precomputed {data: [[...],...]
+  // Positional comparison — ignores column names, only values matter
+  // This means JOIN and subquery solutions both pass if they return same data
   if (exp.rows.length !== act.rows.length) return false;
   if (exp.columns.length !== act.columns.length) return false;
-  const norm = (rows, cols) => rows.map(r =>
-    cols.map(c => { const v = r[c]; return v === null || v === undefined ? '' : String(v).toUpperCase().trim(); })
-  ).sort((a, b) => a.join('|').localeCompare(b.join('|')));
-  const eNorm = norm(exp.rows, exp.columns);
-  const aNorm = norm(act.rows, act.columns);
+  // Normalize: sort rows, uppercase strings, null→''
+  const normRow = (row, cols) =>
+    cols.map(c => { const v = row[c]; return v === null || v === undefined ? '' : String(v).toUpperCase().trim(); });
+  const normData = (rows, cols) =>
+    rows.map(r => normRow(r, cols)).sort((a, b) => a.join('\x00').localeCompare(b.join('\x00')));
+  const eNorm = normData(exp.rows, exp.columns);
+  const aNorm = normData(act.rows, act.columns);
   for (let i = 0; i < eNorm.length; i++) {
     for (let j = 0; j < eNorm[i].length; j++) {
       if (eNorm[i][j] !== aNorm[i][j]) return false;
+    }
+  }
+  return true;
+}
+
+// Compare student result against precomputed expected data (array of value arrays)
+function compareResultsWithData(expectedData, act) {
+  // expectedData: [[val, val, ...], ...] — rows of values, order-independent
+  if (expectedData.length !== act.rows.length) return false;
+  if (expectedData.length === 0) return true;
+  if (expectedData[0].length !== act.columns.length) return false;
+  const norm = v => v === null || v === undefined ? '' : String(v).toUpperCase().trim();
+  const sortKey = row => row.map(norm).join('\x00');
+  const expSorted = expectedData.map(row => row.map(norm)).sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+  const actSorted = act.rows.map(r => act.columns.map(c => norm(r[c]))).sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
+  for (let i = 0; i < expSorted.length; i++) {
+    for (let j = 0; j < expSorted[i].length; j++) {
+      if (expSorted[i][j] !== actSorted[i][j]) return false;
     }
   }
   return true;
@@ -2002,7 +2278,7 @@ function executeASTSteppedQuery(query, sqlText) {
         if (e.type === 'binary') { extractLinks(e.left); extractLinks(e.right); }
       })(join.on);
     }
-    steps.push({ step: 'join', label: joinClause || 'JOIN ' + jlabel, before: snapshot(beforeRows), after: snapshot(rows), newCols: tbl.columns, activeCols: joinActive,
+    steps.push({ step: 'join', label: joinClause || 'JOIN ' + jlabel, joinType: join.type, before: snapshot(beforeRows), after: snapshot(rows), newCols: tbl.columns, activeCols: joinActive,
       hlInfo: { tablesFrom: new Set(), tablesJoin: new Set([join.table.toUpperCase()]), colHL: jColHL, joinLinks: jLinks } });
   }
 
@@ -2349,13 +2625,25 @@ function renderTimeline(pos) {
       html += renderMiniTable(s.after.columns, s.after.rows, s.after.total, null, afterAc);
       html += '</div></div>';
     } else if (s.before && s.after) {
-      html += '<div class="df-card-body">';
-      html += '<div class="df-half"><div class="df-half-label">Před (' + s.before.total + ')</div>';
-      html += renderMiniTable(s.before.columns, s.before.rows, s.before.total, null, ac);
-      html += '</div>';
-      html += '<div class="df-half"><div class="df-half-label">Po (' + s.after.total + ')</div>';
-      html += renderMiniTable(s.after.columns, s.after.rows, s.after.total, s.newCols, afterAc);
-      html += '</div></div>';
+      // For JOIN steps, add Venn diagram
+      if (s.step === 'join') {
+        html += '<div class="df-card-body">';
+        html += '<div class="df-half"><div class="df-half-label">Před (' + s.before.total + ')</div>';
+        html += renderMiniTable(s.before.columns, s.before.rows, s.before.total, null, ac);
+        html += '</div>';
+        html += '<div class="df-half"><div class="df-half-label">Po (' + s.after.total + ')</div>';
+        html += renderMiniTable(s.after.columns, s.after.rows, s.after.total, s.newCols, afterAc);
+        html += '</div></div>';
+        html += renderJoinVenn(s.joinType || 'INNER');
+      } else {
+        html += '<div class="df-card-body">';
+        html += '<div class="df-half"><div class="df-half-label">Před (' + s.before.total + ')</div>';
+        html += renderMiniTable(s.before.columns, s.before.rows, s.before.total, null, ac);
+        html += '</div>';
+        html += '<div class="df-half"><div class="df-half-label">Po (' + s.after.total + ')</div>';
+        html += renderMiniTable(s.after.columns, s.after.rows, s.after.total, s.newCols, afterAc);
+        html += '</div></div>';
+      }
     } else if (s.after) {
       html += '<div class="df-card-body df-single">';
       html += renderMiniTable(s.after.columns, s.after.rows, s.after.total, null, afterAc);
@@ -2563,6 +2851,481 @@ function renderMixTable(columns, mixRows, activeCols) {
   }
   h += '</tbody></table>';
   return h;
+}
+
+// ============================================================
+// JOIN VENN DIAGRAM
+// ============================================================
+function renderJoinVenn(joinType) {
+  const configs = {
+    'INNER': {
+      leftFill: 'rgba(188,140,255,0.15)', rightFill: 'rgba(188,140,255,0.15)', centerFill: 'rgba(188,140,255,0.55)',
+      desc: 'Pouze shody z obou tabulek', label: 'INNER JOIN'
+    },
+    'LEFT': {
+      leftFill: 'rgba(188,140,255,0.55)', rightFill: 'rgba(188,140,255,0.15)', centerFill: 'rgba(188,140,255,0.55)',
+      desc: 'Vše z levé + shody z pravé (NULL kde není shoda)', label: 'LEFT JOIN'
+    },
+    'RIGHT': {
+      leftFill: 'rgba(188,140,255,0.15)', rightFill: 'rgba(188,140,255,0.55)', centerFill: 'rgba(188,140,255,0.55)',
+      desc: 'Vše z pravé + shody z levé (NULL kde není shoda)', label: 'RIGHT JOIN'
+    },
+    'FULL': {
+      leftFill: 'rgba(188,140,255,0.55)', rightFill: 'rgba(188,140,255,0.55)', centerFill: 'rgba(188,140,255,0.55)',
+      desc: 'Vše z obou tabulek (NULL kde není shoda)', label: 'FULL OUTER JOIN'
+    },
+    'CROSS': {
+      leftFill: 'rgba(188,140,255,0.35)', rightFill: 'rgba(188,140,255,0.35)', centerFill: 'rgba(188,140,255,0.35)',
+      desc: 'Kartézský součin — každý řádek s každým', label: 'CROSS JOIN'
+    },
+    'NATURAL': {
+      leftFill: 'rgba(188,140,255,0.25)', rightFill: 'rgba(188,140,255,0.25)', centerFill: 'rgba(188,140,255,0.65)',
+      desc: 'Auto-join podle shodných názvů sloupců', label: 'NATURAL JOIN'
+    }
+  };
+  const cfg = configs[joinType] || configs['INNER'];
+  // SVG Venn: two overlapping circles
+  const r = 26, cx1 = 38, cx2 = 78, cy = 35, w = 116, h = 70;
+  const stroke = 'rgba(188,140,255,0.7)';
+  let svg = `<svg class="df-join-venn-svg" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg">`;
+  // Left circle
+  svg += `<circle cx="${cx1}" cy="${cy}" r="${r}" fill="${cfg.leftFill}" stroke="${stroke}" stroke-width="1.5"/>`;
+  // Right circle
+  svg += `<circle cx="${cx2}" cy="${cy}" r="${r}" fill="${cfg.rightFill}" stroke="${stroke}" stroke-width="1.5"/>`;
+  // Center overlap highlight (clip path approach via a simple overlay circle if needed)
+  // Labels
+  svg += `<text x="${cx1-8}" y="${cy+4}" font-size="9" fill="rgba(188,140,255,0.9)" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">A</text>`;
+  svg += `<text x="${cx2+8}" y="${cy+4}" font-size="9" fill="rgba(188,140,255,0.9)" font-family="JetBrains Mono" font-weight="700" text-anchor="middle">B</text>`;
+  svg += '</svg>';
+
+  return `<div class="df-join-venn">${svg}<span class="df-join-type-badge">${cfg.label}</span><div class="df-join-desc">${cfg.desc}</div></div>`;
+}
+
+// ============================================================
+// TASKS PANEL
+// ============================================================
+var tasksData = [];       // [{id, chapterNum, chapterTitle, num, text, solutionRows, solutionCols, solved, autoChecked}]
+var tasksActiveId = null;
+var tasksDocked = false;
+var tasksRecordMode = false; // when true, next query execution records solution for active task
+
+function tasksOverlayClick() {
+  if (!tasksDocked) toggleTasksPanel();
+}
+
+function toggleTasksPanel() {
+  const panel = document.getElementById('tasksPanel');
+  const overlay = document.getElementById('tasksOverlay');
+  const btn = document.getElementById('btnTasks');
+  const isOpen = panel.classList.contains('open');
+  if (isOpen && !tasksDocked) {
+    panel.classList.remove('open');
+    overlay.classList.remove('show');
+    btn.classList.remove('active');
+  } else if (!isOpen) {
+    panel.classList.add('open');
+    if (!tasksDocked) overlay.classList.add('show');
+    btn.classList.add('active');
+  }
+}
+
+function toggleTasksDocked() {
+  tasksDocked = !tasksDocked;
+  const pinBtn = document.getElementById('tasksPinBtn');
+  pinBtn.classList.toggle('pinned', tasksDocked);
+  pinBtn.title = tasksDocked ? 'Zrušit přichycení (panel překryje stránku)' : 'Přichytit panel vedle editoru (zúží stránku)';
+  const panel = document.getElementById('tasksPanel');
+  const appBody = document.getElementById('appBody');
+  const app = document.querySelector('.app');
+
+  if (tasksDocked) {
+    // Move panel inside app-body so it pushes main-content
+    app.classList.add('tasks-docked');
+    appBody.appendChild(panel);
+    document.getElementById('tasksOverlay').classList.remove('show');
+    // Make sure panel is open
+    if (!panel.classList.contains('open')) {
+      panel.classList.add('open');
+      document.getElementById('btnTasks').classList.add('active');
+    }
+  } else {
+    // Move panel back to body as floating overlay
+    app.classList.remove('tasks-docked');
+    document.body.appendChild(panel);
+    if (panel.classList.contains('open')) {
+      document.getElementById('tasksOverlay').classList.add('show');
+    }
+  }
+  setTimeout(() => { updateEditor(); if (window.__lastLinks) drawJoinLines(window.__lastLinks); }, 80);
+}
+
+function handleTasksFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => { parseAndLoadTasks(e.target.result); };
+  reader.readAsText(file, 'UTF-8');
+  event.target.value = '';
+}
+
+function showTasksPasteModal() {
+  document.getElementById('pasteModalOverlay').style.display = 'flex';
+  setTimeout(() => document.getElementById('pasteModalText').focus(), 50);
+}
+
+function hideTasksPasteModal() {
+  document.getElementById('pasteModalOverlay').style.display = 'none';
+}
+
+function loadTasksFromPaste() {
+  const text = document.getElementById('pasteModalText').value.trim();
+  if (!text) return;
+  parseAndLoadTasks(text);
+  hideTasksPasteModal();
+}
+
+function parseAndLoadTasks(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const tasks = [];
+  let currentChapter = null;
+  let currentChapterNum = '';
+  let taskId = 0;
+  for (const line of lines) {
+    const chapterMatch = line.match(/^(\d+\.\d+)[\s\t]+(.+)$/);
+    if (chapterMatch) {
+      currentChapterNum = chapterMatch[1];
+      currentChapter = chapterMatch[2].trim();
+      continue;
+    }
+    if (line.match(/^(\d+)[.\t]\s*(.+)$/) && !line.match(/^\d+\.\d+/)) {
+      const m = line.match(/^(\d+)[.\t]\s*(.+)$/);
+      const num = parseInt(m[1]);
+      const taskText = m[2].trim();
+      if (taskText.length < 3) continue;
+      tasks.push({
+        id: ++taskId,
+        chapterNum: currentChapterNum || '',
+        chapterTitle: currentChapter || 'Úkoly',
+        num,
+        text: taskText,
+        solutionRows: null,   // stored as normalized array of row-strings for comparison
+        solutionCols: null,
+        solved: false,
+        autoChecked: false
+      });
+    }
+  }
+  if (tasks.length === 0) { alert('Nepodařilo se načíst žádné úkoly. Zkontroluj formát textu.'); return; }
+  // Assign preset solutions where available
+  for (const task of tasks) {
+    if (PRESET_SOLUTIONS[task.num]) {
+      task.presetRows = PRESET_SOLUTIONS[task.num].rows;
+      task.presetCols = PRESET_SOLUTIONS[task.num].cols;
+    }
+  }
+  tasksData = tasks;
+  tasksActiveId = null;
+  tasksRecordMode = false;
+  renderTasksPanel();
+  if (!document.getElementById('tasksPanel').classList.contains('open')) toggleTasksPanel();
+}
+
+// Normalize a result for comparison (order-independent, case-insensitive strings)
+function normalizeResultForStorage(result) {
+  if (!result || result.rows.length === 0) return { cols: result.columns, rows: [] };
+  const norm = result.rows.map(r =>
+    result.columns.map(c => { const v = r[c]; return (v === null || v === undefined) ? '' : String(v).toUpperCase().trim(); }).join('|||')
+  ).sort();
+  return { cols: result.columns, rows: norm };
+}
+
+// Normalize raw data array (for preset solutions)
+function normalizeDataForStorage(dataRows) {
+  return dataRows.map(row =>
+    row.map(v => (v === null || v === undefined) ? '' : String(v).toUpperCase().trim()).join('|||')
+  ).sort();
+}
+
+function resultsMatchStored(task, userResult) {
+  // Support precomputed data rows (preset solutions)
+  if (task.presetRows) {
+    const norm = normalizeResultForStorage(userResult);
+    if (norm.rows.length !== task.presetRows.length) return false;
+    if (userResult.columns.length !== task.presetCols) return false;
+    for (let i = 0; i < norm.rows.length; i++) {
+      if (norm.rows[i] !== task.presetRows[i]) return false;
+    }
+    return true;
+  }
+  // Original: recorded solution rows
+  if (!task.solutionRows) return false;
+  const norm = normalizeResultForStorage(userResult);
+  if (norm.rows.length !== task.solutionRows.length) return false;
+  if (norm.cols.length !== task.solutionCols.length) return false;
+  for (let i = 0; i < norm.rows.length; i++) {
+    if (norm.rows[i] !== task.solutionRows[i]) return false;
+  }
+  return true;
+}
+
+// ============================================================
+// PRESET SOLUTIONS — předpočítané výsledky pro FIS cvičení
+// Formát: číslo příkladu → pole řádků (každý řádek = pole hodnot)
+// Přidáno: příklady 2–21 ze zadání 4IT218
+// ============================================================
+const PRESET_SOLUTIONS = {
+  2: { cols: 2, rows: normalizeDataForStorage([
+    ['KONADRA','POSLICEK'],['SYKORA','BESTBOY'],['STRNAD','SVACINAR'],
+    ['KOS','PROJEKTANT'],['KOS','PROJEKTANT'],['VOREL','BOSS'],['DATEL','BOSS'],
+    ['MALY','POSLICEK'],['DLOUHY','KNIHOVNIK'],['VYSOKY','KNIHOVNIK'],
+    ['TLUSTY','KNIHOVNIK'],['TLUSTY','SVACINAR'],['OTYLY','BOSS'],['OBROVSKY','BOSS'],
+    ['CERNY','PROGRAMATOR'],['CERVENY','PROGRAMATOR'],['ZELENY','PROGRAMATOR'],
+    ['ZELENY','PROGRAMATOR'],['FIALKA','PROGRAMATOR'],['FIALOVA','PROGRAMATOR'],
+    ['ZLATUSKA','BOSS'],['SEBESTOVA','BOSS'],['MACHOVA','BUFETACKA'],
+    ['HORACKOVA','UKLIZECKA'],['HORACKOVA','BUFETACKA'],['PAZOUTOVA','MYCKA NADOBI'],
+    ['KADRNOZKOVA','MYCKA NADOBI'],['JONATANOVA','UKLIZECKA'],['CECH','BOSS'],
+    ['SLOVAK','SKLADNIK'],['NEMEC','SKLADNIK'],['CECH','SKLADNIK'],
+    ['KOCOUR','BOSS'],['KOCOUR','SEF TECHNIK'],['KOBYLKA','TECHNIK'],
+    ['KOCICKA','TECHNIK'],['PAPOUSEK','TECHNIK'],['SEFICEK','REDITEL']
+  ])},
+  3: { cols: 1, rows: normalizeDataForStorage([['ING'],['RNDR'],['DOC']]) },
+  4: { cols: 3, rows: normalizeDataForStorage([
+    ['KONADRA','5400','6480'],['SYKORA','6000','7200'],['STRNAD','7500','9000'],
+    ['KOS','10500','12600'],['KOS','10800','12960'],['VOREL','12000','14400'],
+    ['DATEL','12600','15120'],['MALY','6000','7200'],['DLOUHY','9000','10800'],
+    ['VYSOKY','10500','12600'],['TLUSTY','11100','13320'],['TLUSTY','6000','7200'],
+    ['OTYLY','12000','14400'],['OBROVSKY','13500','16200'],['CERNY','7500','9000'],
+    ['CERVENY','9000','10800'],['ZELENY','10500','12600'],['ZELENY','10500','12600'],
+    ['FIALKA','10500','12600'],['FIALOVA','10200','12240'],['ZLATUSKA','13500','16200'],
+    ['SEBESTOVA','8400','10080'],['MACHOVA','7500','9000'],['HORACKOVA','7500','9000'],
+    ['HORACKOVA','7800','9360'],['PAZOUTOVA','6600','7920'],['KADRNOZKOVA','6600','7920'],
+    ['JONATANOVA','6600','7920'],['CECH','9000','10800'],['SLOVAK','6600','7920'],
+    ['NEMEC','7200','8640'],['CECH','7500','9000'],['KOCOUR','12900','15480'],
+    ['KOCOUR','11400','13680'],['KOBYLKA','10500','12600'],['KOCICKA','10200','12240'],
+    ['PAPOUSEK','10200','12240'],['SEFICEK','15000','18000']
+  ])},
+  5: { cols: 1, rows: normalizeDataForStorage([
+    ['Pan  KONADRA pracuje v oddeleni c. 1'],
+    ['Pan  SYKORA pracuje v oddeleni c. 1'],
+    ['Pan  STRNAD pracuje v oddeleni c. 1'],
+    ['Pan ING KOS pracuje v oddeleni c. 1'],
+    ['Pan ING KOS pracuje v oddeleni c. 1'],
+    ['Pan ING VOREL pracuje v oddeleni c. 1'],
+    ['Pan RNDR DATEL pracuje v oddeleni c. 1'],
+    ['Pan  MALY pracuje v oddeleni c. 2'],
+    ['Pan  DLOUHY pracuje v oddeleni c. 2'],
+    ['Pan  VYSOKY pracuje v oddeleni c. 2'],
+    ['Pan ING TLUSTY pracuje v oddeleni c. 2'],
+    ['Pan  TLUSTY pracuje v oddeleni c. 2'],
+    ['Pan ING OTYLY pracuje v oddeleni c. 2'],
+    ['Pan RNDR OBROVSKY pracuje v oddeleni c. 2'],
+    ['Pan  CERNY pracuje v oddeleni c. 3'],
+    ['Pan  CERVENY pracuje v oddeleni c. 3'],
+    ['Pan ING ZELENY pracuje v oddeleni c. 3'],
+    ['Pan ING ZELENY pracuje v oddeleni c. 3'],
+    ['Pan ING FIALKA pracuje v oddeleni c. 3'],
+    ['Pan RNDR FIALOVA pracuje v oddeleni c. 3'],
+    ['Pan RNDR ZLATUSKA pracuje v oddeleni c. 3'],
+    ['Pan  SEBESTOVA pracuje v oddeleni c. 4'],
+    ['Pan  MACHOVA pracuje v oddeleni c. 4'],
+    ['Pan  HORACKOVA pracuje v oddeleni c. 4'],
+    ['Pan  HORACKOVA pracuje v oddeleni c. 4'],
+    ['Pan  PAZOUTOVA pracuje v oddeleni c. 4'],
+    ['Pan  KADRNOZKOVA pracuje v oddeleni c. 4'],
+    ['Pan  JONATANOVA pracuje v oddeleni c. 4'],
+    ['Pan ING CECH pracuje v oddeleni c. 6'],
+    ['Pan  SLOVAK pracuje v oddeleni c. 6'],
+    ['Pan  NEMEC pracuje v oddeleni c. 6'],
+    ['Pan  CECH pracuje v oddeleni c. 6'],
+    ['Pan DOC KOCOUR pracuje v oddeleni c. 8'],
+    ['Pan ING KOCOUR pracuje v oddeleni c. 8'],
+    ['Pan ING KOBYLKA pracuje v oddeleni c. 8'],
+    ['Pan  KOCICKA pracuje v oddeleni c. 8'],
+    ['Pan  PAPOUSEK pracuje v oddeleni c. 8'],
+    ['Pan DOC SEFICEK pracuje v oddeleni c. 10']
+  ])}
+};
+
+// Called after every successful query execution
+function autoCheckTasksWithResult(userResult) {
+  if (tasksData.length === 0) return;
+
+  // Record mode: save result as solution for active task
+  if (tasksRecordMode && tasksActiveId !== null) {
+    const task = tasksData.find(t => t.id === tasksActiveId);
+    if (task) {
+      const norm = normalizeResultForStorage(userResult);
+      task.solutionRows = norm.rows;
+      task.solutionCols = norm.cols;
+      tasksRecordMode = false;
+      renderTasksPanel();
+      // Flash the record button to confirm
+      const recBtn = document.getElementById('tasksRecordBtn');
+      if (recBtn) {
+        recBtn.textContent = '✓ Uloženo';
+        recBtn.style.background = 'rgba(63,185,80,0.25)';
+        recBtn.style.borderColor = 'var(--green)';
+        recBtn.style.color = 'var(--green)';
+        setTimeout(() => {
+          recBtn.textContent = '⚡ Zaznamenat výsledek';
+          recBtn.style.background = '';
+          recBtn.style.borderColor = '';
+          recBtn.style.color = '';
+        }, 2000);
+      }
+    }
+    return;
+  }
+
+  // Auto-check mode: compare against stored solutions
+  let anyChanged = false;
+  let lastSolvedId = null;
+  for (const task of tasksData) {
+    if (!task.solutionRows && !task.presetRows) continue;
+    if (task.solved) continue;
+    if (resultsMatchStored(task, userResult)) {
+      task.solved = true;
+      task.autoChecked = true;
+      anyChanged = true;
+      lastSolvedId = task.id;
+    }
+  }
+  if (anyChanged) {
+    tasksActiveId = lastSolvedId;
+    renderTasksPanel();
+    setTimeout(() => {
+      const el = document.querySelector(`.tasks-task[data-taskid="${lastSolvedId}"]`);
+      if (el) {
+        el.style.transition = 'background 0.5s';
+        el.style.background = 'rgba(63,185,80,0.3)';
+        setTimeout(() => { if (el) el.style.background = ''; }, 1000);
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 60);
+  }
+}
+
+function startRecordMode() {
+  if (tasksActiveId === null) {
+    alert('Nejprve vyber úkol kliknutím na něj v panelu.');
+    return;
+  }
+  tasksRecordMode = true;
+  const recBtn = document.getElementById('tasksRecordBtn');
+  if (recBtn) {
+    recBtn.textContent = '⏺ Čeká na dotaz…';
+    recBtn.style.background = 'rgba(210,153,34,0.2)';
+    recBtn.style.borderColor = 'var(--yellow)';
+    recBtn.style.color = 'var(--yellow)';
+  }
+}
+
+function renderTasksPanel() {
+  const body = document.getElementById('tasksBody');
+  const footer = document.getElementById('tasksFooter');
+  if (tasksData.length === 0) {
+    body.innerHTML = '<div class="tasks-empty-state"><div style="font-size:32px;margin-bottom:12px">📄</div><div style="font-weight:600;margin-bottom:6px;color:var(--text2)">Žádná cvičení</div><div style="font-size:11px;color:var(--text3);line-height:1.6">Nahraj textový soubor nebo vlož text se cvičeními.<br>Formát: číslo + tečka + text úkolu.</div></div>';
+    footer.style.display = 'none';
+    return;
+  }
+
+  // Group by chapter
+  const chapters = [];
+  const chapterMap = new Map();
+  for (const task of tasksData) {
+    const key = task.chapterNum + '|' + task.chapterTitle;
+    if (!chapterMap.has(key)) {
+      chapterMap.set(key, { key, num: task.chapterNum, title: task.chapterTitle, tasks: [] });
+      chapters.push(chapterMap.get(key));
+    }
+    chapterMap.get(key).tasks.push(task);
+  }
+
+  // Active task info for record bar
+  const activeTask = tasksData.find(t => t.id === tasksActiveId);
+  const hasSolution = activeTask && activeTask.solutionRows !== null;
+
+  let html = '';
+
+  // Record mode bar (shows when a task is selected)
+  if (activeTask) {
+    html += `<div class="tasks-record-bar" id="tasksRecordBar">`;
+    html += `<span class="tasks-record-task-label">Vybraný: <b>${activeTask.num}.</b> ${escapeHTML(activeTask.text.substring(0, 50))}${activeTask.text.length > 50 ? '…' : ''}</span>`;
+    html += `<div style="display:flex;gap:6px;margin-top:5px">`;
+    if (hasSolution) {
+      html += `<span class="tasks-solution-badge">⚡ Má vzorový výsledek</span>`;
+    }
+    html += `<button class="tasks-record-btn" id="tasksRecordBtn" onclick="startRecordMode()">⚡ Zaznamenat výsledek</button>`;
+    if (hasSolution) {
+      html += `<button class="tasks-record-btn tasks-clear-btn" onclick="clearTaskSolution(${activeTask.id})">✕ Smazat vzor</button>`;
+    }
+    html += `</div></div>`;
+  }
+
+  // Chapter list
+  for (const ch of chapters) {
+    const solvedCount = ch.tasks.filter(t => t.solved).length;
+    html += '<div class="tasks-chapter">';
+    html += `<div class="tasks-chapter-header" onclick="toggleTasksChapter(this)">
+      <span class="tasks-chapter-toggle">▾</span>
+      <span>${ch.num ? escapeHTML(ch.num) + ' — ' : ''}${escapeHTML(ch.title)}</span>
+      <span class="tasks-chapter-count">${solvedCount}/${ch.tasks.length}</span>
+    </div>`;
+    html += '<div class="tasks-task-list">';
+    for (const task of ch.tasks) {
+      const isActive = task.id === tasksActiveId;
+      const isSolved = task.solved;
+      const hasRef = task.solutionRows !== null || task.presetRows !== null;
+      html += `<div class="tasks-task${isActive ? ' active' : ''}${isSolved ? ' solved' : ''}" data-taskid="${task.id}" onclick="selectTask(${task.id})">`;
+      html += `<span class="tasks-task-num">${task.num}.</span>`;
+      html += `<span class="tasks-task-text">${escapeHTML(task.text)}${hasRef ? ' <span style="color:var(--yellow);font-size:9px" title="Má vzorový výsledek — auto-check aktivní">⚡</span>' : ''}</span>`;
+      html += `<span class="tasks-task-check" onclick="event.stopPropagation();toggleTaskSolved(${task.id})">${isSolved ? '✓' : ''}</span>`;
+      html += '</div>';
+    }
+    html += '</div></div>';
+  }
+
+  body.innerHTML = html;
+
+  // Footer progress
+  const solved = tasksData.filter(t => t.solved).length;
+  const total = tasksData.length;
+  document.getElementById('tasksProgressLabel').textContent = `${solved} / ${total} splněno`;
+  document.getElementById('tasksProgressFill').style.width = (total > 0 ? solved / total * 100 : 0) + '%';
+  footer.style.display = '';
+}
+
+function toggleTasksChapter(headerEl) {
+  headerEl.closest('.tasks-chapter').classList.toggle('collapsed');
+}
+
+function selectTask(id) {
+  tasksActiveId = id;
+  tasksRecordMode = false; // cancel record mode on task switch
+  renderTasksPanel();
+  // Scroll selected into view
+  setTimeout(() => {
+    const el = document.querySelector(`.tasks-task[data-taskid="${id}"]`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 30);
+}
+
+function toggleTaskSolved(id) {
+  const task = tasksData.find(t => t.id === id);
+  if (!task) return;
+  task.solved = !task.solved;
+  if (!task.solved) task.autoChecked = false;
+  renderTasksPanel();
+}
+
+function clearTaskSolution(id) {
+  const task = tasksData.find(t => t.id === id);
+  if (!task) return;
+  task.solutionRows = null;
+  task.solutionCols = null;
+  task.solved = false;
+  task.autoChecked = false;
+  renderTasksPanel();
 }
 
 // ============================================================
