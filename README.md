@@ -7,9 +7,9 @@ Interaktivní nástroj pro vizualizaci průběhu SQL dotazů. Vytvořeno jako st
 ![screenshot](https://img.shields.io/badge/stack-single_HTML_file-blue)
 
 ## Komunita a Feedback
-- **Budu rád za každou zpětnou vazbu, pozitivní negativní, návrhy a různé nápady.
-- **Napište, pokud najdete chybu. [Bude jich hodně a zatím je to opravdu pouze vizualize myšlenky, než funkční model.]
-- [**LINK NA DISKUSI](https://github.com/ThomasK3/sql.viz/discussions/1)
+- Budu rád za každou zpětnou vazbu, pozitivní negativní, návrhy a různé nápady.
+- Napište, pokud najdete chybu. [Bude jich hodně a zatím je to opravdu pouze vizualize myšlenky, než funkční model.]
+- **[LINK NA DISKUSI](https://github.com/ThomasK3/sql.viz/discussions/1)**
 
 ## Co to umí
 
