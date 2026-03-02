@@ -6,9 +6,9 @@ Interaktivní nástroj pro vizualizaci průběhu SQL dotazů. Vytvořeno jako st
 
 ![screenshot](https://img.shields.io/badge/stack-single_HTML_file-blue)
 
-## <font color="red">SQL je pouze simulováno JavaScriptem,
-- proto ne všechny kombinace klauzulí vyhodnocují správný výsledek.
-- Jedná se tedy pouze o ukázku na základních klauzulích.</font>
+## $\color{red}{\text{SQL je pouze simulováno JavaScriptem,}}$
+- $\color{red}{\text{proto ne všechny kombinace klauzulí vyhodnocují správný výsledek.}}$
+- $\color{red}{\text{Jedná se tedy pouze o ukázku na základních klauzulích.}}$
 
 ## Komunita a Feedback
 - Budu rád za každou zpětnou vazbu, pozitivní negativní, návrhy a různé nápady.
