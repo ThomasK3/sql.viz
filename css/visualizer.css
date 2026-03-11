@@ -1,0 +1,321 @@
+/* ===== PIPELINE ===== */
+.pipeline-section {
+  flex: 35; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--bg); min-height: 100px; position: relative;
+  border-bottom: 1px solid var(--border);
+}
+.pipeline-header {
+  padding: 6px 16px; background: var(--bg2); border-bottom: 1px solid var(--border); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.pipeline-header-title { font-size: 11px; color: var(--text2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.pipeline-wrap {
+  flex: 1; position: relative; overflow: auto; padding: 20px 24px 10px;
+}
+.pipeline-tables {
+  display: flex; gap: 32px; justify-content: center; align-items: flex-start;
+  position: relative; min-height: 120px;
+}
+.pipeline-svg {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 1;
+}
+.pipeline-svg path {
+  fill: none; stroke-width: 2.5; stroke-linecap: round;
+}
+.join-line { stroke: var(--purple); opacity: 0.8; }
+.join-line-anim {
+  stroke-dasharray: 8 4; animation: dashFlow 1s linear infinite;
+}
+@keyframes dashFlow { to { stroke-dashoffset: -12; } }
+.join-dot {
+  fill: var(--purple); r: 4; opacity: 0.9;
+}
+
+/* Pipeline table cards */
+.p-table {
+  background: var(--bg2); border: 2px solid var(--border); border-radius: 10px;
+  min-width: 150px; max-width: 220px; flex: 1; position: relative; z-index: 2;
+  transition: all 0.3s;
+}
+.p-table.hl-from { border-color: var(--green); box-shadow: 0 0 16px rgba(63,185,80,0.15); }
+.p-table.hl-join { border-color: var(--purple); box-shadow: 0 0 16px rgba(188,140,255,0.15); }
+.p-table-name {
+  padding: 7px 12px; font-size: 13px; font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  background: var(--bg3); border-bottom: 1px solid var(--border);
+  border-radius: 8px 8px 0 0; transition: all 0.3s; text-align: center;
+}
+.hl-from .p-table-name { background: rgba(63,185,80,0.12); color: var(--green); }
+.hl-join .p-table-name { background: rgba(188,140,255,0.12); color: var(--purple); }
+.p-table-cols { padding: 4px 0; }
+.p-col {
+  padding: 2px 12px; font-size: 11px; font-family: 'JetBrains Mono', monospace;
+  color: var(--text2); transition: all 0.2s; border-left: 2px solid transparent;
+  position: relative;
+}
+.p-col.hl-select { background: rgba(88,166,255,0.08); color: var(--blue); border-left-color: var(--blue); }
+.p-col.hl-where { background: rgba(210,153,34,0.08); color: var(--yellow); border-left-color: var(--yellow); }
+.p-col.hl-join-col { background: rgba(188,140,255,0.08); color: var(--purple); border-left-color: var(--purple); }
+.p-col.hl-group { background: rgba(247,120,186,0.08); color: var(--pink); border-left-color: var(--pink); }
+.p-col.hl-having { background: rgba(255,123,114,0.08); color: var(--red); border-left-color: var(--red); }
+.p-col.hl-order { background: rgba(86,212,221,0.08); color: var(--cyan); border-left-color: var(--cyan); }
+.p-col-pk { color: var(--orange); }
+
+/* ===== EXECUTION FLOW ===== */
+.flow-bar {
+  display: flex; gap: 4px; padding: 10px 24px; align-items: center;
+  flex-shrink: 0; flex-wrap: wrap; background: var(--bg2);
+  border-top: 1px solid var(--border);
+}
+.flow-label { font-size: 10px; color: var(--text3); margin-right: 4px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+.flow-arrow { color: var(--text3); font-size: 10px; margin: 0 2px; }
+.flow-step {
+  padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
+  background: var(--bg3); color: var(--text3); border: 1px solid var(--border);
+  transition: all 0.3s; cursor: pointer; position: relative;
+}
+.flow-step.active { border-color: currentColor; }
+.flow-step.s-from.active { color: var(--green); background: rgba(63,185,80,0.1); }
+.flow-step.s-join.active { color: var(--purple); background: rgba(188,140,255,0.1); }
+.flow-step.s-where.active { color: var(--yellow); background: rgba(210,153,34,0.1); }
+.flow-step.s-group.active { color: var(--pink); background: rgba(247,120,186,0.1); }
+.flow-step.s-having.active { color: var(--red); background: rgba(255,123,114,0.1); }
+.flow-step.s-select.active { color: var(--blue); background: rgba(88,166,255,0.1); }
+.flow-step.s-order.active { color: var(--cyan); background: rgba(86,212,221,0.1); }
+
+/* Step tooltip */
+.flow-tooltip {
+  display: none; position: absolute; bottom: calc(100% + 8px); left: 50%;
+  transform: translateX(-50%); background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 12px; font-size: 11px; font-weight: 400;
+  color: var(--text); white-space: nowrap; z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4); line-height: 1.4;
+}
+.flow-tooltip::after {
+  content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+  border:5px solid transparent; border-top-color:var(--border);
+}
+.flow-step.show-tip .flow-tooltip { display: block; }
+
+/* ===== DATAFLOW SECTION ===== */
+.dataflow-section { flex: 65; min-height: 80px; display: flex; flex-direction: column; overflow: hidden; border-top: 1px solid var(--border); }
+.dataflow-header {
+  padding: 6px 16px; background: var(--bg2);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.timeline-top { display: flex; align-items: center; justify-content: space-between; }
+.timeline-title { font-size: 11px; color: var(--text2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+.timeline-step-label { font-size: 10px; color: var(--text3); font-weight: 500; font-family: 'JetBrains Mono', monospace; }
+.timeline-controls { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+.tl-btn {
+  width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--border);
+  background: var(--bg3); color: var(--text2); font-size: 10px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  padding: 0; font-family: inherit; transition: all 0.15s;
+}
+.tl-btn:hover { background: var(--bg4); color: var(--text); border-color: var(--border2); }
+.tl-btn.playing { color: var(--blue); border-color: var(--blue); background: rgba(88,166,255,0.1); }
+.timeline-slider {
+  flex: 1;
+  -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+  background: var(--bg4); border-radius: 2px; outline: none; cursor: pointer;
+}
+.timeline-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 14px; height: 14px;
+  background: var(--blue); border-radius: 50%; cursor: pointer; border: 2px solid var(--bg);
+  box-shadow: 0 0 4px rgba(88,166,255,0.4);
+}
+.timeline-slider::-moz-range-thumb {
+  width: 14px; height: 14px; background: var(--blue); border-radius: 50%;
+  cursor: pointer; border: 2px solid var(--bg);
+}
+.dataflow-wrap { flex: 1; overflow: auto; padding: 12px 16px; }
+
+/* ===== DATA FLOW CARDS ===== */
+#dataFlow { padding: 0; }
+#dataFlow:empty { display: none; }
+.df-card {
+  margin-bottom: 16px; border-radius: 10px; border: 1px solid var(--border);
+  background: var(--bg2); overflow: hidden;
+  border-left: 3px solid var(--step-color, var(--border));
+}
+.df-card-header {
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+  font-size: 11px; font-weight: 600; border-bottom: 1px solid var(--border);
+  font-family: 'JetBrains Mono', monospace; line-height: 1.4;
+}
+.df-card-header > span:nth-child(2) { flex: 1; min-width: 0; word-break: break-word; }
+.df-card-header .df-step-num {
+  width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center;
+  justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0;
+}
+.df-card-header .df-count {
+  margin-left: auto; font-weight: 400; color: var(--text3); font-size: 10px; white-space: nowrap;
+}
+.df-condition {
+  padding: 6px 14px; background: var(--bg3); font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; color: var(--text); line-height: 1.5; border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--step-color, var(--text3));
+}
+
+/* Step color variants */
+.df-from  { --step-color: var(--green); }
+.df-join  { --step-color: var(--purple); }
+.df-where { --step-color: var(--yellow); }
+.df-group { --step-color: var(--pink); }
+.df-having { --step-color: var(--red); }
+.df-select { --step-color: var(--blue); }
+.df-order { --step-color: var(--cyan); }
+.df-setop { --step-color: var(--yellow); }
+.df-case  { --step-color: var(--purple); }
+.df-distinct { --step-color: var(--blue); }
+
+.df-section { padding: 8px 14px; }
+.df-section-label {
+  font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text2); margin-bottom: 6px;
+}
+.df-divider {
+  text-align: center; color: var(--text3); font-size: 11px; padding: 6px 0;
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  background: var(--bg3); font-weight: 500;
+}
+.df-arrow { text-align: center; color: var(--text3); font-size: 16px; padding: 6px 0; }
+.df-mini-table { width: 100%; border-collapse: collapse; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+.df-mini-table th { padding: 3px 6px; text-align: left; font-weight: 600; color: var(--text); border-bottom: 1px solid var(--border); white-space: nowrap; font-size: 9px; opacity: 0.85; }
+.df-mini-table td { padding: 3px 6px; white-space: nowrap; color: var(--text); border-bottom: 1px solid rgba(48,54,61,0.5); opacity: 0.8; }
+.df-mini-table tr.df-pass td { color: var(--green); }
+.df-mini-table tr.df-fail td { color: var(--text3); text-decoration: line-through; opacity: 0.6; }
+.df-mini-table .df-null { color: var(--text3); font-style: italic; }
+.df-mini-table .df-more { color: var(--text3); font-style: italic; font-size: 9px; }
+.df-mini-table .df-new-col { color: var(--purple); }
+.df-mini-table .df-check-col { width: 20px; text-align: center; font-size: 12px; }
+.df-mini-table .df-sort-col { color: var(--yellow); font-weight: 600; }
+.df-section-output .df-mini-table th { color: var(--green); }
+.df-counter { font-size: 10px; color: var(--text2); padding: 6px 6px 2px;
+  font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+.df-counter span { color: var(--green); font-weight: 700; }
+
+/* Step number colors */
+.df-from .df-step-num { background: rgba(63,185,80,0.2); color: var(--green); }
+.df-from .df-card-header { color: var(--green); }
+.df-join .df-step-num { background: rgba(188,140,255,0.2); color: var(--purple); }
+.df-join .df-card-header { color: var(--purple); }
+.df-where .df-step-num { background: rgba(210,153,34,0.2); color: var(--yellow); }
+.df-where .df-card-header { color: var(--yellow); }
+.df-group .df-step-num { background: rgba(247,120,186,0.2); color: var(--pink); }
+.df-group .df-card-header { color: var(--pink); }
+.df-having .df-step-num { background: rgba(255,123,114,0.2); color: var(--red); }
+.df-having .df-card-header { color: var(--red); }
+.df-select .df-step-num { background: rgba(88,166,255,0.2); color: var(--blue); }
+.df-select .df-card-header { color: var(--blue); }
+.df-order .df-step-num { background: rgba(86,212,221,0.2); color: var(--cyan); }
+.df-order .df-card-header { color: var(--cyan); }
+.df-setop .df-step-num { background: rgba(210,153,34,0.2); color: var(--yellow); }
+.df-setop .df-card-header { color: var(--yellow); }
+.df-case .df-step-num { background: rgba(188,140,255,0.2); color: var(--purple); }
+.df-case .df-card-header { color: var(--purple); }
+
+/* CASE table */
+.df-case-table { width: 100%; border-collapse: collapse; font-size: 10px; font-family: 'JetBrains Mono', monospace; }
+.df-case-table th { padding: 3px 6px; text-align: left; font-weight: 600; color: var(--text2); border-bottom: 1px solid var(--border); white-space: nowrap; font-size: 9px; }
+.df-case-table td { padding: 3px 6px; white-space: nowrap; color: var(--text2); border-bottom: 1px solid rgba(48,54,61,0.5); }
+.df-case-table tr.df-case-match td { color: var(--green); }
+.df-case-table tr.df-case-skip td { color: var(--text3); opacity: 0.5; }
+.df-case-table .df-case-result { font-weight: 600; }
+
+/* GROUP BY blocks */
+.df-group-blocks { padding: 4px 6px; }
+.df-group-block { border-left: 3px solid var(--group-color, var(--text3)); margin-bottom: 8px;
+  padding: 4px 8px; border-radius: 0 4px 4px 0; background: rgba(0,0,0,0.15); }
+.df-group-header { font-size: 9px; font-weight: 700; color: var(--group-color, var(--text2));
+  margin-bottom: 4px; letter-spacing: 0.3px; }
+.df-group-block .df-mini-table { margin: 0; }
+
+/* JOIN Venn */
+.df-join-input { display: flex; gap: 8px; align-items: flex-start; }
+.df-join-input > div { flex: 1; min-width: 0; }
+.df-join-venn-wrap { text-align: center; margin-bottom: 8px; }
+.df-join-venn {
+  padding: 8px 12px 4px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.df-join-venn-svg { width: 140px; height: 70px; }
+.df-join-type-badge {
+  font-size: 10px; font-weight: 700; font-family: 'JetBrains Mono', monospace;
+  padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px;
+  background: rgba(188,140,255,0.15); color: var(--purple);
+}
+.df-join-desc { font-size: 10px; color: var(--text3); text-align: center; line-height: 1.4; }
+
+/* Colored table borders per step */
+.df-card .df-mini-table, .df-card .df-case-table {
+  border: 1px solid var(--step-color, var(--border)); border-radius: 6px; overflow: hidden;
+}
+
+/* ===== DF ANIMATIONS ===== */
+@keyframes dfCardEnter {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes dfRowFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes dfSlideFromLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes dfSlideFromRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes dfScaleIn {
+  from { transform: scale(0); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+@keyframes dfPulse {
+  0%   { opacity: 0.3; }
+  50%  { opacity: 0.8; }
+  100% { opacity: var(--final-opacity, 1); }
+}
+@keyframes dfFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes dfCondFlash {
+  0%   { background: rgba(var(--step-color-rgb, 128,128,128), 0.25); }
+  100% { background: transparent; }
+}
+@keyframes dfScalePop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.03); }
+  100% { transform: scale(1); }
+}
+
+.df-card-enter { opacity: 0; transform: translateY(12px); animation: dfCardEnter 150ms ease-out forwards; }
+.df-anim-hidden { opacity: 0; }
+.df-anim-row-in { animation: dfRowFadeIn 200ms ease-out forwards; }
+.df-anim-slide-left { animation: dfSlideFromLeft 400ms ease-out forwards; }
+.df-anim-slide-right { animation: dfSlideFromRight 400ms ease-out forwards; }
+.df-anim-scale-in { animation: dfScaleIn 400ms ease-out forwards; }
+.df-anim-fade-in { animation: dfFadeIn 300ms ease-out forwards; }
+.df-anim-scale-pop { animation: dfScalePop 300ms ease-out forwards; }
+
+/* WHERE/HAVING animation neutral state */
+.df-where-neutral td, .df-having-neutral td { color: var(--text2) !important; transition: color 250ms ease, background 250ms ease; }
+.df-where-neutral .df-check-col, .df-having-neutral .df-check-col { opacity: 0; transition: opacity 200ms ease; }
+.df-where-evaluated-pass td { color: var(--green) !important; }
+.df-where-evaluated-pass .df-check-col { opacity: 1 !important; }
+.df-where-evaluated-fail td { color: var(--red) !important; }
+.df-where-evaluated-fail .df-check-col { opacity: 1 !important; }
+
+/* SELECT: faded non-selected columns */
+.df-select-faded { opacity: 0.3 !important; transition: opacity 400ms ease; }
+
+/* ORDER: sort column highlight bg + badge */
+.df-order-sort-bg { background: rgba(86,212,221,0.1); }
+.df-order-badge { font-size: 8px; color: var(--cyan); margin-left: 4px; vertical-align: middle; font-weight: 400; }
+
+/* GROUP: highlighted group column cells */
+.df-group-col-hl { background: rgba(247,120,186,0.15); }

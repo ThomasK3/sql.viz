@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL Vizualizér — Interaktivní výukový nástroj</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.11.0/sql-wasm.js"></script>
+<link rel="stylesheet" href="css/main.css">
+<link rel="stylesheet" href="css/editor.css">
+<link rel="stylesheet" href="css/visualizer.css">
+<link rel="stylesheet" href="css/tasks.css">
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1><span>SQL</span> Vizualizér</h1>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:11px;color:var(--text3)">4IT218 — Oracle SQL</span>
+      <button class="btn btn-dict" id="btnDict">Slovník</button>
+      <button class="btn btn-tasks" id="btnTasks">📋 Úkoly</button>
+    </div>
+  </div>
+
+  <div class="app-body" id="appBody">
+  <div class="main-content">
+    <!-- LEVÝ SLOUPEC -->
+    <div class="col-left" id="colLeft">
+      <div class="editor-section" id="editorSection">
+        <div class="editor-toolbar">
+          <div class="editor-toolbar-left">
+            <span class="editor-toolbar-title">SQL Editor</span>
+          </div>
+          <div class="editor-toolbar-right">
+            <div class="examples-dropdown">
+              <button class="btn" id="btnExamples">Příklady ▾</button>
+              <div class="examples-menu" id="examplesMenu"></div>
+            </div>
+            <button class="section-fullscreen-btn" title="Fullscreen">⛶</button>
+            <button class="btn btn-primary" id="btnRun">▶ Spustit <kbd>Ctrl+Enter</kbd></button>
+          </div>
+        </div>
+        <div class="editor-wrap" id="editorWrap">
+          <div class="editor-line-numbers" id="lineNumbers">1</div>
+          <div class="editor-highlight" id="editorHighlight"></div>
+          <textarea class="editor-textarea" id="editorTextarea" spellcheck="false" placeholder="Napiš SQL dotaz..."></textarea>
+        </div>
+        <div class="clause-warning" id="clauseWarning"></div>
+      </div>
+      <div class="challenge-panel" id="challengePanel" style="display:none">
+        <div class="challenge-card">
+          <div class="challenge-header">
+            <span class="challenge-tag" id="challengeTag">CHALLENGE #1</span>
+            <button class="challenge-close" title="Zavřít">✕</button>
+          </div>
+          <div class="challenge-from" id="challengeFrom"></div>
+          <div class="challenge-body" id="challengeBody"></div>
+          <div class="challenge-hint" id="challengeHint"></div>
+          <div class="challenge-nav">
+            <button class="ch-nav-btn" id="chPrev">← Předchozí</button>
+            <span class="challenge-counter" id="challengeCounter"></span>
+            <button class="ch-nav-btn" id="chNext">Další →</button>
+          </div>
+        </div>
+        <div class="challenge-result" id="challengeResult" style="display:none"></div>
+      </div>
+      <div class="resize-h" id="resizeEditorFlow"></div>
+      <div class="dataflow-section" id="dataflowSection">
+        <div class="dataflow-header">
+          <div class="timeline-top">
+            <span class="timeline-title">Průběh zpracování</span>
+            <span class="timeline-step-label" id="timelineLabel"></span>
+            <button class="section-fullscreen-btn" title="Fullscreen">⛶</button>
+          </div>
+          <div class="timeline-controls" id="timelineControls" style="display:none">
+            <button class="tl-btn" id="tlPrev" title="Předchozí krok">◀</button>
+            <button class="tl-btn" id="tlPlay" title="Přehrát/Pozastavit">▶</button>
+            <button class="tl-btn" id="tlNext" title="Další krok">▶</button>
+            <input type="range" class="timeline-slider" id="timelineSlider" min="0" max="0" value="0">
+          </div>
+        </div>
+        <div class="dataflow-wrap" id="dataFlow"></div>
+      </div>
+    </div>
+
+    <!-- RESIZE mezi sloupci -->
+    <div class="resize-v" id="resizeColumns"></div>
+
+    <!-- PRAVÝ SLOUPEC -->
+    <div class="col-right" id="colRight">
+      <div class="dict-panel" id="dictPanel" style="display:none">
+        <div class="dict-header">
+          <span class="dict-header-title">SQL Slovník</span>
+          <button class="dict-close" id="dictClose" title="Zavřít">✕</button>
+        </div>
+        <div class="dict-list" id="dictList"></div>
+      </div>
+      <div class="pipeline-section" id="pipelineSection">
+        <div class="pipeline-header"><span class="pipeline-header-title">Vizualizace tabulek</span><button class="section-fullscreen-btn" title="Fullscreen">⛶</button></div>
+        <div class="pipeline-wrap" id="pipelineWrap">
+          <div class="pipeline-tables" id="pipelineTables">
+            <svg class="pipeline-svg" id="pipelineSvg"></svg>
+          </div>
+        </div>
+        <div class="flow-bar" id="flowBar">
+          <span class="flow-label">Pořadí vykonání:</span>
+        </div>
+      </div>
+      <div class="resize-h" id="resizePipelineResults"></div>
+      <div class="results-section" id="resultsSection">
+        <div class="results-header">
+          <span class="results-header-title">Výsledky</span>
+          <div class="results-status" id="resultsStatus"></div>
+          <button class="section-fullscreen-btn" title="Fullscreen">⛶</button>
+        </div>
+        <div class="results-wrap" id="resultsWrap">
+          <div class="results-empty" id="resultsPlaceholder">Napiš SQL dotaz a stiskni <kbd>Ctrl+Enter</kbd> pro spuštění</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- tasks panel docked slot -->
+  </div><!-- /app-body -->
+</div><!-- /app -->
+
+<!-- TASKS PANEL (overlay by default, moves inside app-body when docked) -->
+<div class="tasks-overlay" id="tasksOverlay"></div>
+<div class="tasks-panel" id="tasksPanel">
+  <div class="tasks-header">
+    <span class="tasks-title">Cvičení</span>
+    <div style="display:flex;gap:5px;align-items:center">
+      <button class="tasks-pin-btn" id="tasksPinBtn" title="Přichytit panel (panel zůstane otevřený vedle editoru)">📌</button>
+      <button class="tasks-close-btn">✕</button>
+    </div>
+  </div>
+  <div class="tasks-body" id="tasksBody">
+    <div class="tasks-empty-state">
+      <div style="font-size:32px;margin-bottom:12px">📄</div>
+      <div style="font-weight:600;margin-bottom:6px;color:var(--text2)">Načítání cvičení…</div>
+    </div>
+  </div>
+  <div class="tasks-footer" id="tasksFooter" style="display:none">
+    <span class="tasks-progress-label" id="tasksProgressLabel">0 / 0 splněno</span>
+    <div class="tasks-progress-bar"><div class="tasks-progress-fill" id="tasksProgressFill"></div></div>
+  </div>
+</div>
+
+<!-- PASTE MODAL -->
+<div class="paste-modal-overlay" id="pasteModalOverlay" style="display:none">
+  <div class="paste-modal">
+    <div class="paste-modal-header">
+      <span style="font-weight:700;font-size:13px">Vložit text cvičení</span>
+      <button style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer">✕</button>
+    </div>
+    <div style="padding:8px 14px 0;font-size:11px;color:var(--text3);line-height:1.6;border-bottom:1px solid var(--border);padding-bottom:8px;">
+      Vlož text cvičení. Každý úkol na novém řádku: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">1. Text úkolu</code><br>
+      Kapitoly: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">4.1 Název kapitoly</code> — volitelně přidej vzorové SQL za svislítkem: <code style="background:var(--bg3);padding:1px 4px;border-radius:3px;">1. Text | SELECT jmeno FROM zam</code>
+    </div>
+    <textarea id="pasteModalText" class="paste-modal-textarea" placeholder="Sem vlož text cvičení...&#10;&#10;Příklad:&#10;4.1  Klausule SELECT&#10;&#10;1.  Vypište jména zaměstnanců. | SELECT jmeno FROM zam&#10;2.  Jaké tituly se vyskytují? | SELECT DISTINCT titul FROM zam WHERE titul IS NOT NULL"></textarea>
+    <div class="paste-modal-footer">
+      <button class="btn">Zrušit</button>
+      <button class="btn btn-primary">Načíst</button>
+    </div>
+  </div>
+</div>
+
+<noscript><p style="color:#ff7b72;padding:20px;text-align:center">JavaScript je vypnutý. Povol JavaScript pro správné fungování.</p></noscript>
+<script type="module" src="js/main.js"></script>
+<script>
+// Fallback: detect if module failed to load (e.g. file:// protocol)
+setTimeout(function() {
+  var ta = document.getElementById('editorTextarea');
+  if (ta && !ta.value) {
+    var rp = document.getElementById('resultsPlaceholder');
+    if (rp) rp.innerHTML = '<span style="color:#ff7b72">⚠️ ES moduly nefungují přes file:// protokol.<br>Otevři stránku přes HTTP server:<br><code style="color:#58a6ff">python3 -m http.server 8080</code><br>pak otevři <code style="color:#58a6ff">http://localhost:8080/index-modular.html</code><br><br>Nebo použij VS Code rozšíření <b>Live Server</b>.</span>';
+  }
+}, 2000);
+</script>
+</body>
+</html>
