@@ -6,6 +6,15 @@ Interaktivní nástroj pro vizualizaci průběhu SQL dotazů. Vytvořeno jako st
 
 ![screenshot](https://img.shields.io/badge/stack-single_HTML_file-blue)
 
+## $\color{red}{\text{SQL je pouze simulováno JavaScriptem,}}$
+- $\color{red}{\text{proto ne všechny kombinace klauzulí vyhodnocují správný výsledek.}}$
+- $\color{red}{\text{Jedná se tedy pouze o ukázku na základních klauzulích.}}$
+
+## Komunita a Feedback
+- Budu rád za každou zpětnou vazbu, pozitivní negativní, návrhy a různé nápady.
+- Napište, pokud najdete chybu. [Bude jich hodně a zatím je to opravdu pouze vizualize myšlenky, než funkční model.]
+- **[LINK NA DISKUSI](https://github.com/ThomasK3/sql.viz/discussions/1)**
+
 ## Co to umí
 
 - **SQL Editor** se syntax highlightingem a příklady dotazů
