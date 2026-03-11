@@ -1,0 +1,44 @@
+4.8  Self JOIN
+
+69. Jména zaměstnanců s názvem oddělení a jménem vedoucího oddělení. | SELECT z.jmeno, o.nazev, s.jmeno AS vedouci FROM zam z JOIN oddel o ON z.cis_odd = o.cis_odd JOIN zam s ON o.sef = s.os_cis;
+70. Jména zaměstnanců se jménem bezprostředně nadřízeného. | SELECT z.jmeno, n.jmeno AS nadrizeny FROM zam z JOIN zam n ON z.nadr = n.os_cis;
+71. Jména zaměstnanců se jménem bezprostředně nadřízeného a jménem vedoucího oddělení. | SELECT z.jmeno, n.jmeno AS nadrizeny, s.jmeno AS vedouci FROM zam z JOIN zam n ON z.nadr = n.os_cis JOIN oddel o ON z.cis_odd = o.cis_odd JOIN zam s ON o.sef = s.os_cis;
+72. Počty inženýrů v jednotlivých odděleních (název oddělení, jméno vedoucího). | SELECT o.nazev, s.jmeno AS vedouci, COUNT(*) AS pocet FROM zam z JOIN oddel o ON z.cis_odd = o.cis_odd JOIN zam s ON o.sef = s.os_cis WHERE z.titul = 'ING' GROUP BY o.nazev, s.jmeno;
+73. Jména zaměstnanců s platem vyšším než má jejich bezprostředně nadřízený. | SELECT z.jmeno FROM zam z JOIN zam n ON z.nadr = n.os_cis WHERE z.plat > n.plat;
+74. Jména zaměstnanců s platem stejným jako má zaměstnanec DLOUHY. | SELECT jmeno FROM zam WHERE plat = (SELECT plat FROM zam WHERE jmeno = 'DLOUHY');
+75. Jména vedoucích jednotlivých oddělení s názvem a počtem pracovníků v oddělení. | SELECT s.jmeno AS vedouci, o.nazev, COUNT(z.os_cis) AS pocet FROM oddel o JOIN zam s ON o.sef = s.os_cis JOIN zam z ON z.cis_odd = o.cis_odd GROUP BY s.jmeno, o.nazev;
+76. Přehled funkcí vykonávaných v jednotlivých odděleních s počtem zaměstnanců. | SELECT cis_odd, fce, COUNT(*) AS pocet FROM zam GROUP BY cis_odd, fce;
+77. Jména vedoucích jednotlivých oddělení s počty pracovníků vykonávajícími jednotlivé funkce. | SELECT s.jmeno AS vedouci, z.fce, COUNT(*) AS pocet FROM oddel o JOIN zam s ON o.sef = s.os_cis JOIN zam z ON z.cis_odd = o.cis_odd GROUP BY s.jmeno, z.fce;
+78. Počty zaměstnanců bezprostředně podřízených jednotlivým zaměstnancům. | SELECT n.jmeno, COUNT(*) AS pocet FROM zam z JOIN zam n ON z.nadr = n.os_cis GROUP BY n.jmeno;
+79. Kteří vedoucí (číslo, jméno) šéfují oddělení s alespoň 4 zaměstnanci. | SELECT s.os_cis, s.jmeno FROM oddel o JOIN zam s ON o.sef = s.os_cis JOIN zam z ON z.cis_odd = o.cis_odd GROUP BY s.os_cis, s.jmeno HAVING COUNT(*) >= 4;
+
+4.9  Vnořené dotazy
+
+80. Oddělení se stejným počtem zaměstnanců jako oddělení PROJEKCE. | SELECT cis_odd FROM zam GROUP BY cis_odd HAVING COUNT(*) = (SELECT COUNT(*) FROM zam z JOIN oddel o ON z.cis_odd = o.cis_odd WHERE o.nazev = 'PROJEKCE');
+81. Jména zaměstnanců s platem menším než průměrný plat. | SELECT jmeno FROM zam WHERE plat < (SELECT AVG(plat) FROM zam);
+82. Číslo a jméno zaměstnance s nejmenším platem. | SELECT os_cis, jmeno FROM zam WHERE plat = (SELECT MIN(plat) FROM zam);
+83. Počet zaměstnanců s platem menším než průměrný plat. | SELECT COUNT(*) FROM zam WHERE plat < (SELECT AVG(plat) FROM zam);
+84. Počet inženýrů s platem menším než průměrný plat všech inženýrů. | SELECT COUNT(*) FROM zam WHERE titul = 'ING' AND plat < (SELECT AVG(plat) FROM zam WHERE titul = 'ING');
+85. Ve kterém oddělení nepracuje žádný inženýr. | SELECT cis_odd FROM oddel WHERE cis_odd NOT IN (SELECT cis_odd FROM zam WHERE titul = 'ING');
+86. Seznam všech oddělení (číslo a název) s počty zaměstnanců včetně nulových. | SELECT o.cis_odd, o.nazev, COUNT(z.os_cis) AS pocet FROM oddel o LEFT JOIN zam z ON o.cis_odd = z.cis_odd GROUP BY o.cis_odd, o.nazev;
+87. Oddělení (číslo a název), ve kterých nepracuje nikdo bez titulu. | SELECT o.cis_odd, o.nazev FROM oddel o JOIN zam z ON o.cis_odd = z.cis_odd GROUP BY o.cis_odd, o.nazev HAVING SUM(CASE WHEN z.titul IS NULL THEN 1 ELSE 0 END) = 0;
+88. Oddělení (číslo a název), ve kterých pracuje více inženýrů než zaměstnanců bez titulu. | SELECT o.cis_odd, o.nazev FROM oddel o JOIN zam z ON o.cis_odd = z.cis_odd GROUP BY o.cis_odd, o.nazev HAVING SUM(CASE WHEN z.titul = 'ING' THEN 1 ELSE 0 END) > SUM(CASE WHEN z.titul IS NULL THEN 1 ELSE 0 END);
+89. Seznam všech zaměstnanců (osobní číslo a jméno) s počtem přidělených úkolů. | SELECT z.os_cis, z.jmeno, COUNT(u.cis_uk) AS pocet FROM zam z LEFT JOIN ukoly u ON z.os_cis = u.os_cis GROUP BY z.os_cis, z.jmeno;
+
+4.10  Testovací dotazy
+
+90. Čísla oddělení, ve kterých pracují nějací zaměstnanci. | SELECT DISTINCT cis_odd FROM zam;
+91. Čísla oddělení, ve kterých pracují inženýři. | SELECT DISTINCT cis_odd FROM zam WHERE titul = 'ING';
+92. Čísla a názvy oddělení, ve kterých pracují inženýři. | SELECT DISTINCT o.cis_odd, o.nazev FROM oddel o JOIN zam z ON o.cis_odd = z.cis_odd WHERE z.titul = 'ING';
+93. Čísla a názvy oddělení, ve kterých nepracuje žádný inženýr. | SELECT o.cis_odd, o.nazev FROM oddel o WHERE o.cis_odd NOT IN (SELECT cis_odd FROM zam WHERE titul = 'ING');
+94. Čísla zaměstnanců, kteří mají podřízené. | SELECT DISTINCT nadr FROM zam WHERE nadr IS NOT NULL;
+95. Čísla a jména zaměstnanců, kteří mají podřízené. | SELECT DISTINCT n.os_cis, n.jmeno FROM zam z JOIN zam n ON z.nadr = n.os_cis;
+96. Průměrný plat za všechny zaměstnance. | SELECT AVG(plat) FROM zam;
+97. Čísla a jména zaměstnanců s platem větším než průměrný plat. | SELECT os_cis, jmeno FROM zam WHERE plat > (SELECT AVG(plat) FROM zam);
+98. Čísla a jména zaměstnanců s platem větším než průměrný plat v jejich oddělení. | SELECT z.os_cis, z.jmeno FROM zam z WHERE z.plat > (SELECT AVG(plat) FROM zam WHERE cis_odd = z.cis_odd);
+99. Čísla a jména zaměstnanců, kteří mají přidělený úkol. | SELECT DISTINCT z.os_cis, z.jmeno FROM zam z JOIN ukoly u ON z.os_cis = u.os_cis;
+100. Čísla a jména zaměstnanců, kteří nemají přidělený žádný úkol. | SELECT os_cis, jmeno FROM zam WHERE os_cis NOT IN (SELECT os_cis FROM ukoly);
+101. Čísla a popisy úkolů, které neřeší vedoucí oddělení. | SELECT cis_uk, popis FROM ukoly WHERE os_cis NOT IN (SELECT sef FROM oddel WHERE sef IS NOT NULL);
+102. Pro každé oddělení počet zaměstnanců bez titulu a počet těch, kteří neřeší žádný úkol. | SELECT z.cis_odd, SUM(CASE WHEN z.titul IS NULL THEN 1 ELSE 0 END) AS bez_titulu, SUM(CASE WHEN z.os_cis NOT IN (SELECT os_cis FROM ukoly) THEN 1 ELSE 0 END) AS bez_ukolu FROM zam z GROUP BY z.cis_odd;
+103. Pro všechna oddělení počty zaměstnanců a počty těch, kteří mají přidělený úkol. | SELECT z.cis_odd, COUNT(DISTINCT z.os_cis) AS zamestnanci, COUNT(DISTINCT u.os_cis) AS s_ukolem FROM zam z LEFT JOIN ukoly u ON z.os_cis = u.os_cis GROUP BY z.cis_odd;
+104. Pro všechna oddělení počty zaměstnanců a počty řešených úkolů. | SELECT z.cis_odd, COUNT(DISTINCT z.os_cis) AS zamestnanci, COUNT(u.cis_uk) AS ukoly FROM zam z LEFT JOIN ukoly u ON z.os_cis = u.os_cis GROUP BY z.cis_odd;
